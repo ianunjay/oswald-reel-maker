@@ -38,6 +38,31 @@
       font-weight: 600;
     }
 
+    .debug-info {
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .debug-line {
+      color: #666;
+      margin: 4px 0;
+    }
+
+    .debug-line.error {
+      color: #d32f2f;
+    }
+
+    .debug-line.success {
+      color: #2e7d32;
+    }
+
     .warning-banner {
       background: #fff3cd;
       border: 1px solid #ffc107;
@@ -233,6 +258,11 @@
   <div class="container">
     <h1>🎬 Carousel Reel Maker</h1>
     
+    <div class="debug-info" id="debugInfo">
+      <div class="debug-line">🔍 Debug Info:</div>
+      <div class="debug-line" id="libStatus">Checking library status...</div>
+    </div>
+    
     <div class="warning-banner" id="warningBanner"></div>
 
     <div class="section">
@@ -258,11 +288,35 @@
 
   <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
 
-  <!-- FFmpeg.wasm with explicit corePath -->
-  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+  <!-- FFmpeg.wasm - try single combined script -->
+  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
 
   <script>
+    // ============================================
+    // DEBUG HELPER
+    // ============================================
+    const debugInfo = document.getElementById('debugInfo');
+    const libStatus = document.getElementById('libStatus');
+
+    function addDebugLog(message, type = 'default') {
+      const line = document.createElement('div');
+      line.className = `debug-line ${type}`;
+      line.textContent = message;
+      debugInfo.appendChild(line);
+      console.log(`[${type}] ${message}`);
+    }
+
+    // Monitor library loading
+    setTimeout(() => {
+      addDebugLog(`window.FFmpeg exists: ${!!window.FFmpeg}`, window.FFmpeg ? 'success' : 'error');
+      if (window.FFmpeg) {
+        addDebugLog(`FFmpeg.createFFmpeg exists: ${!!window.FFmpeg.createFFmpeg}`, 'success');
+      } else {
+        addDebugLog('FFmpeg not loaded - checking alternatives...', 'error');
+        addDebugLog(`window.FFmpegUtil exists: ${!!window.FFmpegUtil}`, window.FFmpegUtil ? 'success' : 'error');
+      }
+    }, 2000);
+
     // ============================================
     // THEME COLORS
     // ============================================
@@ -618,34 +672,22 @@
       return frames;
     }
 
-    async function waitForFFmpegLib() {
-      return new Promise((resolve, reject) => {
-        let attempts = 0;
-        const maxAttempts = 50; // 5 seconds
-
-        const checkLib = () => {
-          if (window.FFmpeg && window.FFmpeg.createFFmpeg) {
-            resolve();
-          } else if (attempts < maxAttempts) {
-            attempts++;
-            setTimeout(checkLib, 100);
-          } else {
-            reject(new Error('FFmpeg library failed to load after 5 seconds'));
-          }
-        };
-
-        checkLib();
-      });
-    }
-
     async function encodeMP4(frames) {
       try {
-        // Wait for FFmpeg library to load
-        await waitForFFmpegLib();
-
-        const { createFFmpeg, fetchFile } = window.FFmpeg;
+        addDebugLog('encodeMP4 called');
+        addDebugLog(`window.FFmpeg: ${!!window.FFmpeg}`);
         
-        // Create FFmpeg instance with explicit core path
+        if (!window.FFmpeg) {
+          throw new Error('window.FFmpeg is undefined - library did not load');
+        }
+
+        if (!window.FFmpeg.createFFmpeg) {
+          throw new Error('createFFmpeg not found in FFmpeg object. Keys: ' + Object.keys(window.FFmpeg).join(', '));
+        }
+
+        const { createFFmpeg } = window.FFmpeg;
+        addDebugLog('createFFmpeg extracted successfully');
+        
         const ffmpeg = createFFmpeg({
           log: true,
           corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js'
@@ -655,15 +697,18 @@
           updateProgress(Math.round(progress * 100));
         });
 
+        addDebugLog('Loading FFmpeg...');
         if (!ffmpeg.isLoaded()) {
           await ffmpeg.load();
         }
+        addDebugLog('FFmpeg loaded successfully', 'success');
 
         // Write each frame to FFmpeg virtual filesystem
         for (let i = 0; i < frames.length; i++) {
           ffmpeg.FS('writeFile', `frame${String(i).padStart(3, '0')}.png`, frames[i]);
           updateProgress((i / frames.length) * 15);
         }
+        addDebugLog(`Wrote ${frames.length} frames`);
 
         // Write concat demuxer file
         const concatLines = frames.map((_, i) =>
@@ -671,6 +716,7 @@
         ).join('\n');
         
         ffmpeg.FS('writeFile', 'concat.txt', new TextEncoder().encode(concatLines));
+        addDebugLog('Running FFmpeg encoding...');
 
         // Encode video
         updateProgress(20);
@@ -686,6 +732,7 @@
           'output.mp4'
         );
 
+        addDebugLog('Encoding complete', 'success');
         updateProgress(90);
 
         // Read output file
@@ -701,6 +748,7 @@
         updateProgress(100);
         return new Uint8Array(data);
       } catch (e) {
+        addDebugLog(`Error in encodeMP4: ${e.message}`, 'error');
         console.error('Encoding error:', e);
         throw new Error('Encoding failed: ' + (e.message || String(e)));
       }
