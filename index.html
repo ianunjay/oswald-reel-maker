@@ -260,7 +260,7 @@
     
     <div class="debug-info" id="debugInfo">
       <div class="debug-line">🔍 Debug Info:</div>
-      <div class="debug-line" id="libStatus">Checking library status...</div>
+      <div class="debug-line" id="libStatus">Loading FFmpeg library...</div>
     </div>
     
     <div class="warning-banner" id="warningBanner"></div>
@@ -288,15 +288,11 @@
 
   <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
 
-  <!-- FFmpeg.wasm - try single combined script -->
-  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
-
   <script>
     // ============================================
-    // DEBUG HELPER
+    // DEBUG & LIBRARY LOADING
     // ============================================
     const debugInfo = document.getElementById('debugInfo');
-    const libStatus = document.getElementById('libStatus');
 
     function addDebugLog(message, type = 'default') {
       const line = document.createElement('div');
@@ -306,16 +302,48 @@
       console.log(`[${type}] ${message}`);
     }
 
-    // Monitor library loading
-    setTimeout(() => {
-      addDebugLog(`window.FFmpeg exists: ${!!window.FFmpeg}`, window.FFmpeg ? 'success' : 'error');
-      if (window.FFmpeg) {
-        addDebugLog(`FFmpeg.createFFmpeg exists: ${!!window.FFmpeg.createFFmpeg}`, 'success');
-      } else {
-        addDebugLog('FFmpeg not loaded - checking alternatives...', 'error');
-        addDebugLog(`window.FFmpegUtil exists: ${!!window.FFmpegUtil}`, window.FFmpegUtil ? 'success' : 'error');
-      }
-    }, 2000);
+    // Load FFmpeg dynamically
+    async function loadFFmpegLib() {
+      return new Promise((resolve, reject) => {
+        addDebugLog('Starting dynamic FFmpeg load...');
+        
+        // Load main FFmpeg script
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js';
+        script.type = 'text/javascript';
+        
+        script.onload = () => {
+          addDebugLog('FFmpeg script loaded', 'success');
+          
+          // Wait for the global to be available
+          let attempts = 0;
+          const checkFFmpeg = () => {
+            if (window.FFmpeg && window.FFmpeg.createFFmpeg) {
+              addDebugLog('FFmpeg.createFFmpeg available!', 'success');
+              resolve();
+            } else if (attempts < 20) {
+              attempts++;
+              setTimeout(checkFFmpeg, 100);
+            } else {
+              reject(new Error('FFmpeg did not initialize after script load'));
+            }
+          };
+          checkFFmpeg();
+        };
+        
+        script.onerror = () => {
+          reject(new Error('Failed to load FFmpeg script from CDN'));
+        };
+        
+        document.head.appendChild(script);
+      });
+    }
+
+    // Start loading immediately
+    const ffmpegPromise = loadFFmpegLib();
+    ffmpegPromise
+      .then(() => addDebugLog('✓ FFmpeg ready', 'success'))
+      .catch(err => addDebugLog(`✗ FFmpeg load failed: ${err.message}`, 'error'));
 
     // ============================================
     // THEME COLORS
@@ -674,19 +702,11 @@
 
     async function encodeMP4(frames) {
       try {
-        addDebugLog('encodeMP4 called');
-        addDebugLog(`window.FFmpeg: ${!!window.FFmpeg}`);
+        // Wait for FFmpeg to be available
+        await ffmpegPromise;
         
-        if (!window.FFmpeg) {
-          throw new Error('window.FFmpeg is undefined - library did not load');
-        }
-
-        if (!window.FFmpeg.createFFmpeg) {
-          throw new Error('createFFmpeg not found in FFmpeg object. Keys: ' + Object.keys(window.FFmpeg).join(', '));
-        }
-
+        addDebugLog('Creating FFmpeg instance...');
         const { createFFmpeg } = window.FFmpeg;
-        addDebugLog('createFFmpeg extracted successfully');
         
         const ffmpeg = createFFmpeg({
           log: true,
@@ -697,11 +717,11 @@
           updateProgress(Math.round(progress * 100));
         });
 
-        addDebugLog('Loading FFmpeg...');
+        addDebugLog('Loading FFmpeg worker...');
         if (!ffmpeg.isLoaded()) {
           await ffmpeg.load();
         }
-        addDebugLog('FFmpeg loaded successfully', 'success');
+        addDebugLog('FFmpeg worker loaded', 'success');
 
         // Write each frame to FFmpeg virtual filesystem
         for (let i = 0; i < frames.length; i++) {
