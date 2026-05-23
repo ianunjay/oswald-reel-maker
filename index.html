@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carousel Reel Maker</title>
+  
+  <!-- Google Fonts for Canvas rendering -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@800&family=Inter+Tight:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter Tight', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      color: #1a1a1a;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    .warning-banner {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 4px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #856404;
+      display: none;
+    }
+
+    .warning-banner.show {
+      display: block;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 200px;
+      padding: 16px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      resize: vertical;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #333;
+    }
+
+    textarea.error {
+      border-color: #d32f2f;
+      background: #ffebee;
+    }
+
+    .error-message {
+      color: #d32f2f;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #1a1a1a;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #333;
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #1a1a1a;
+      border: 1px solid #ddd;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #e0e0e0;
+    }
+
+    .btn-secondary:disabled {
+      background: #f0f0f0;
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    .preview-container {
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .preview-canvas {
+      width: 100%;
+      max-width: 540px;
+      aspect-ratio: 4 / 5;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      background: white;
+    }
+
+    .slide-counter {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      font-size: 13px;
+      color: #666;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+      display: none;
+    }
+
+    .progress-bar.show {
+      display: block;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #1a1a1a;
+      width: 0%;
+      transition: width 0.2s;
+    }
+
+    .progress-text {
+      font-size: 13px;
+      color: #666;
+      text-align: right;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .progress-text.show {
+      display: block;
+    }
+
+    .status-message {
+      font-size: 14px;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .status-message.show {
+      display: block;
+    }
+
+    .status-message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #81c784;
+    }
+
+    .status-message.info {
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid #64b5f6;
+    }
+
+    #hiddenCanvas {
+      display: none;
+    }
+
+    .placeholder {
+      color: #999;
+      text-align: center;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 Carousel Reel Maker</h1>
+    
+    <div class="warning-banner" id="warningBanner"></div>
+
+    <div class="section">
+      <div class="section-title">Step 1: Paste JSON</div>
+      <textarea id="jsonInput" placeholder="Paste your carousel JSON here..."></textarea>
+      <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn-primary" id="previewBtn" disabled>👁️ Preview</button>
+      <button class="btn-primary" id="exportBtn" disabled>⬇️ Export MP4</button>
+    </div>
+
+    <div class="status-message" id="statusMessage"></div>
+    <div class="progress-text" id="progressText"></div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+    <div class="preview-container">
+      <div class="slide-counter" id="slideCounter" style="display: none;"></div>
+      <canvas id="previewCanvas" class="preview-canvas" width="1080" height="1350"></canvas>
+    </div>
+  </div>
+
+  <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
+
+  <!-- FFmpeg.wasm from CDN -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
+  <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+
+  <script>
+    // ============================================
+    // THEME COLORS
+    // ============================================
+    const THEMES = {
+      'cream': {
+        bg: '#faf8f4',
+        text: '#1a1a1a',
+        eyebrow: '#b14e2f',
+        cta: '#b14e2f',
+        brand: '#ccbfa8'
+      },
+      'dark-minimal': {
+        bg: '#0f0f0f',
+        text: '#f5f5f5',
+        eyebrow: '#888888',
+        cta: '#ffffff',
+        brand: '#333333'
+      },
+      'dark-purple': {
+        bg: '#1a0a2e',
+        text: '#f0eaff',
+        eyebrow: '#9b6dff',
+        cta: '#9b6dff',
+        brand: '#3d2060'
+      },
+      'dark-magenta': {
+        bg: '#1a0a14',
+        text: '#ffe0f0',
+        eyebrow: '#d44d8a',
+        cta: '#d44d8a',
+        brand: '#4a1530'
+      }
+    };
+
+    // ============================================
+    // TYPOGRAPHY
+    // ============================================
+    const FONTS = {
+      eyebrow:  '500 28px "JetBrains Mono", monospace',
+      title:    '800 96px "Fraunces", Georgia, serif',
+      subtitle: '400 36px "Inter Tight", sans-serif',
+      body:     '400 32px "Inter Tight", sans-serif',
+      cta:      '600 26px "JetBrains Mono", monospace',
+      brand:    '400 24px "JetBrains Mono", monospace'
+    };
+
+    // ============================================
+    // LAYOUT CONSTANTS
+    // ============================================
+    const LAYOUT = {
+      paddingX: 80,
+      paddingTop: 100,
+      eyebrowY: 160,
+      titleStartY: 260,
+      titleLineHeight: 110,
+      subtitleOffset: 60,
+      bodyOffset: 50,
+      bodyLineHeight: 50,
+      ctaY: 1220,
+      brandX: 1020,
+      brandY: 200
+    };
+
+    // ============================================
+    // DOM ELEMENTS
+    // ============================================
+    const jsonInput = document.getElementById('jsonInput');
+    const previewBtn = document.getElementById('previewBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const errorMessage = document.getElementById('errorMessage');
+    const previewCanvas = document.getElementById('previewCanvas');
+    const hiddenCanvas = document.getElementById('hiddenCanvas');
+    const statusMessage = document.getElementById('statusMessage');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const slideCounter = document.getElementById('slideCounter');
+    const warningBanner = document.getElementById('warningBanner');
+
+    let currentData = null;
+    let currentSlideIndex = 0;
+    let animationFrameId = null;
+    let slides = [];
+    let theme = null;
+    let brand = null;
+
+    // ============================================
+    // BROWSER COMPATIBILITY CHECK
+    // ============================================
+    function checkBrowserCompatibility() {
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+      
+      if (isSafari || isMobile) {
+        warningBanner.textContent = '⚠️ Best used on Chrome or Firefox on desktop. Mobile may run out of memory during encoding.';
+        warningBanner.classList.add('show');
+      }
+    }
+
+    // ============================================
+    // UI HELPERS
+    // ============================================
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.classList.add('show');
+      jsonInput.classList.add('error');
+    }
+
+    function clearError() {
+      errorMessage.textContent = '';
+      errorMessage.classList.remove('show');
+      jsonInput.classList.remove('error');
+    }
+
+    function showStatus(message, type = 'info') {
+      statusMessage.textContent = message;
+      statusMessage.className = `status-message show ${type}`;
+    }
+
+    function clearStatus() {
+      statusMessage.classList.remove('show');
+    }
+
+    function updateProgress(percent) {
+      progressFill.style.width = percent + '%';
+      progressText.textContent = `Encoding: ${Math.round(percent)}%`;
+    }
+
+    function showProgressBar() {
+      progressBar.classList.add('show');
+      progressText.classList.add('show');
+    }
+
+    function hideProgressBar() {
+      progressBar.classList.remove('show');
+      progressText.classList.remove('show');
+    }
+
+    // ============================================
+    // JSON VALIDATION
+    // ============================================
+    function validateSchema(data) {
+      if (!data.slides || !Array.isArray(data.slides)) {
+        throw new Error('slides array required');
+      }
+      if (!data.theme) {
+        throw new Error('theme required');
+      }
+      if (data.slides.length < 1) {
+        throw new Error('at least 1 slide required');
+      }
+      data.slides.forEach((s, i) => {
+        if (!s.type) throw new Error(`slide ${i}: type required`);
+        if (!s.title) throw new Error(`slide ${i}: title required`);
+      });
+    }
+
+    function parseJSON(input) {
+      try {
+        const data = JSON.parse(input);
+        validateSchema(data);
+        return data;
+      } catch (e) {
+        throw new Error('Invalid JSON: ' + e.message);
+      }
+    }
+
+    // ============================================
+    // CANVAS RENDERING
+    // ============================================
+    function getCtx(canvas) {
+      return canvas.getContext('2d');
+    }
+
+    function clearCanvas(ctx) {
+      ctx.fillStyle = THEMES[theme].bg;
+      ctx.fillRect(0, 0, 1080, 1350);
+    }
+
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight, fontSize) {
+      if (!text) return y;
+      
+      const lines = text.split('\n');
+      let currentY = y;
+
+      lines.forEach(line => {
+        ctx.fillText(line, x, currentY);
+        currentY += lineHeight;
+      });
+
+      return currentY;
+    }
+
+    function drawEyebrow(ctx, slide) {
+      if (!slide.eyebrow) return;
+      ctx.fillStyle = THEMES[theme].eyebrow;
+      ctx.font = FONTS.eyebrow;
+      ctx.textAlign = 'left';
+      ctx.fillText(slide.eyebrow.toUpperCase(), LAYOUT.paddingX, LAYOUT.eyebrowY);
+    }
+
+    function drawTitle(ctx, slide) {
+      if (!slide.title) return;
+      ctx.fillStyle = THEMES[theme].text;
+      ctx.font = FONTS.title;
+      ctx.textAlign = 'left';
+      ctx.lineHeight = LAYOUT.titleLineHeight;
+      
+      const lines = slide.title.split('\n');
+      let y = LAYOUT.titleStartY;
+      lines.forEach(line => {
+        ctx.fillText(line, LAYOUT.paddingX, y);
+        y += LAYOUT.titleLineHeight;
+      });
+
+      return y;
+    }
+
+    function drawSubtitle(ctx, slide, titleEndY) {
+      if (!slide.subtitle) return titleEndY;
+      ctx.fillStyle = THEMES[theme].text;
+      ctx.font = FONTS.subtitle;
+      ctx.textAlign = 'left';
+      
+      const y = titleEndY + LAYOUT.subtitleOffset;
+      ctx.fillText(slide.subtitle, LAYOUT.paddingX, y);
+      
+      return y + 50;
+    }
+
+    function drawBody(ctx, slide, subtitleEndY) {
+      if (!slide.body) return subtitleEndY;
+      ctx.fillStyle = THEMES[theme].text;
+      ctx.font = FONTS.body;
+      ctx.textAlign = 'left';
+      
+      const lines = slide.body.split('\n');
+      let y = subtitleEndY + LAYOUT.bodyOffset;
+      lines.forEach(line => {
+        ctx.fillText(line, LAYOUT.paddingX, y);
+        y += LAYOUT.bodyLineHeight;
+      });
+
+      return y;
+    }
+
+    function drawCTA(ctx, slide) {
+      if (!slide.cta) return;
+      ctx.fillStyle = THEMES[theme].cta;
+      ctx.font = FONTS.cta;
+      ctx.textAlign = 'left';
+      ctx.fillText(slide.cta.toUpperCase(), LAYOUT.paddingX, LAYOUT.ctaY);
+    }
+
+    function drawBrandMark(ctx, brandText) {
+      if (!brandText) return;
+      
+      ctx.save();
+      ctx.fillStyle = THEMES[theme].brand;
+      ctx.font = FONTS.brand;
+      ctx.textAlign = 'left';
+      
+      ctx.translate(LAYOUT.brandX, LAYOUT.brandY);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(brandText.toUpperCase(), 0, 0);
+      
+      ctx.restore();
+    }
+
+    function renderSlide(canvas, slide, themeKey, brandText) {
+      theme = themeKey;
+      const ctx = getCtx(canvas);
+      
+      clearCanvas(ctx);
+      drawEyebrow(ctx, slide);
+      const titleEndY = drawTitle(ctx, slide);
+      const subtitleEndY = drawSubtitle(ctx, slide, titleEndY);
+      drawBody(ctx, slide, subtitleEndY);
+      drawCTA(ctx, slide);
+      drawBrandMark(ctx, brandText);
+    }
+
+    // ============================================
+    // PREVIEW ANIMATION
+    // ============================================
+    function playPreviewAnimation() {
+      if (!currentData) return;
+
+      slides = currentData.slides;
+      theme = currentData.theme;
+      brand = currentData.brand;
+      currentSlideIndex = 0;
+
+      slideCounter.style.display = 'block';
+      const previewCtx = getCtx(previewCanvas);
+
+      function animateSlide(index) {
+        if (index >= slides.length) {
+          slideCounter.style.display = 'none';
+          return;
+        }
+
+        renderSlide(previewCanvas, slides[index], theme, brand);
+        slideCounter.textContent = `${index + 1} / ${slides.length}`;
+
+        // Hold slide for 3 seconds, then move to next
+        setTimeout(() => {
+          animateSlide(index + 1);
+        }, 3000);
+      }
+
+      animateSlide(0);
+    }
+
+    // ============================================
+    // JSON INPUT HANDLER
+    // ============================================
+    jsonInput.addEventListener('input', () => {
+      clearError();
+      clearStatus();
+
+      if (!jsonInput.value.trim()) {
+        previewBtn.disabled = true;
+        exportBtn.disabled = true;
+        return;
+      }
+
+      try {
+        currentData = parseJSON(jsonInput.value);
+        previewBtn.disabled = false;
+        exportBtn.disabled = false;
+      } catch (e) {
+        showError(e.message);
+        previewBtn.disabled = true;
+        exportBtn.disabled = true;
+      }
+    });
+
+    // ============================================
+    // PREVIEW BUTTON
+    // ============================================
+    previewBtn.addEventListener('click', () => {
+      clearStatus();
+      if (!currentData) return;
+      
+      showStatus('Rendering preview...', 'info');
+      
+      // Wait for fonts to load
+      document.fonts.ready.then(() => {
+        playPreviewAnimation();
+        showStatus('Preview playing', 'success');
+      }).catch(e => {
+        showError('Font loading failed: ' + e.message);
+      });
+    });
+
+    // ============================================
+    // MP4 ENCODING
+    // ============================================
+    async function captureFrames() {
+      const frames = [];
+      const ctx = getCtx(hiddenCanvas);
+
+      for (let i = 0; i < slides.length; i++) {
+        renderSlide(hiddenCanvas, slides[i], theme, brand);
+        
+        const blob = await new Promise(resolve => {
+          hiddenCanvas.toBlob(resolve, 'image/png');
+        });
+        
+        const arrayBuffer = await blob.arrayBuffer();
+        frames.push(new Uint8Array(arrayBuffer));
+      }
+
+      return frames;
+    }
+
+    async function encodeMP4(frames) {
+      const { FFmpeg } = window.FFmpeg;
+      const { fetchFile } = window.FFmpegUtil;
+
+      const ffmpeg = new FFmpeg();
+      
+      ffmpeg.on('progress', ({ progress }) => {
+        updateProgress(Math.round(progress * 100));
+      });
+
+      try {
+        await ffmpeg.load();
+
+        // Write each frame
+        for (let i = 0; i < frames.length; i++) {
+          await ffmpeg.writeFile(`frame${String(i).padStart(3, '0')}.png`, frames[i]);
+        }
+
+        // Write concat list
+        const concatList = frames.map((_, i) =>
+          `file 'frame${String(i).padStart(3, '0')}.png'\nduration 3`
+        ).join('\n');
+        
+        await ffmpeg.writeFile('concat.txt', concatList);
+
+        // Encode
+        await ffmpeg.exec([
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'concat.txt',
+          '-vf', 'scale=1080:1350',
+          '-c:v', 'libx264',
+          '-pix_fmt', 'yuv420p',
+          '-crf', '18',
+          '-preset', 'fast',
+          'output.mp4'
+        ]);
+
+        const data = await ffmpeg.readFile('output.mp4');
+        await ffmpeg.deleteFile('output.mp4');
+        
+        return new Uint8Array(data.buffer);
+      } catch (e) {
+        throw new Error('FFmpeg encoding failed: ' + e.message);
+      }
+    }
+
+    function downloadMP4(uint8array, filename) {
+      const blob = new Blob([uint8array], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || 'carousel-reel.mp4';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ============================================
+    // EXPORT BUTTON
+    // ============================================
+    exportBtn.addEventListener('click', async () => {
+      if (!currentData) return;
+
+      slides = currentData.slides;
+      theme = currentData.theme;
+      brand = currentData.brand;
+
+      clearStatus();
+      exportBtn.disabled = true;
+      previewBtn.disabled = true;
+      showProgressBar();
+      showStatus('Initializing encoder...', 'info');
+
+      try {
+        await document.fonts.ready;
+        
+        showStatus('Capturing frames...', 'info');
+        const frames = await captureFrames();
+        
+        showStatus('Encoding video...', 'info');
+        const mp4Data = await encodeMP4(frames);
+        
+        hideProgressBar();
+        showStatus('✓ Video ready! Downloading...', 'success');
+        
+        downloadMP4(mp4Data, 'carousel-reel.mp4');
+        
+        setTimeout(() => {
+          clearStatus();
+          exportBtn.disabled = false;
+          previewBtn.disabled = false;
+        }, 2000);
+      } catch (e) {
+        hideProgressBar();
+        showError('Export failed: ' + e.message);
+        exportBtn.disabled = false;
+        previewBtn.disabled = false;
+      }
+    });
+
+    // ============================================
+    // INIT
+    // ============================================
+    checkBrowserCompatibility();
+  </script>
+</body>
+</html>
