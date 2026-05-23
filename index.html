@@ -275,8 +275,8 @@
   <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
 
   <!-- FFmpeg.wasm from CDN -->
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js"></script>
-  <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/util.min.js"></script>
 
   <script>
     // ============================================
@@ -657,7 +657,12 @@
     }
 
     async function encodeMP4(frames) {
-      const { FFmpeg } = window.FFmpeg;
+      // Access FFmpeg from global scope after async scripts load
+      if (!window.FFmpeg || !window.FFmpeg.FFmpeg) {
+        throw new Error('FFmpeg library failed to load. Please refresh and try again.');
+      }
+
+      const FFmpeg = window.FFmpeg.FFmpeg;
       const { fetchFile } = window.FFmpegUtil;
 
       const ffmpeg = new FFmpeg();
