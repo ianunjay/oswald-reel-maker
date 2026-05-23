@@ -275,8 +275,7 @@
   <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
 
   <!-- FFmpeg.wasm from CDN -->
-  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
-  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/util.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
 
   <script>
     // ============================================
@@ -364,6 +363,7 @@
     let slides = [];
     let theme = null;
     let brand = null;
+    let ffmpeg = null;
 
     // ============================================
     // BROWSER COMPATIBILITY CHECK
@@ -657,37 +657,36 @@
     }
 
     async function encodeMP4(frames) {
-      // Access FFmpeg from global scope after async scripts load
-      if (!window.FFmpeg || !window.FFmpeg.FFmpeg) {
-        throw new Error('FFmpeg library failed to load. Please refresh and try again.');
+      // Check if FFmpeg library is available
+      if (!window.FFmpeg || !window.FFmpeg.createFFmpeg) {
+        throw new Error('FFmpeg library failed to load. Try refreshing the page.');
       }
 
-      const FFmpeg = window.FFmpeg.FFmpeg;
-      const { fetchFile } = window.FFmpegUtil;
-
-      const ffmpeg = new FFmpeg();
-      
-      ffmpeg.on('progress', ({ progress }) => {
-        updateProgress(Math.round(progress * 100));
-      });
+      const { createFFmpeg, fetchFile } = window.FFmpeg;
+      const ffmpeg = createFFmpeg({ log: true });
 
       try {
-        await ffmpeg.load();
-
-        // Write each frame
-        for (let i = 0; i < frames.length; i++) {
-          await ffmpeg.writeFile(`frame${String(i).padStart(3, '0')}.png`, frames[i]);
+        if (!ffmpeg.isLoaded()) {
+          await ffmpeg.load();
         }
 
-        // Write concat list
+        // Write each frame to FFmpeg virtual filesystem
+        for (let i = 0; i < frames.length; i++) {
+          ffmpeg.FS('writeFile', `frame${String(i).padStart(3, '0')}.png`, frames[i]);
+          // Update progress during frame writing
+          updateProgress((i / frames.length) * 20);
+        }
+
+        // Write concat demuxer file
         const concatList = frames.map((_, i) =>
           `file 'frame${String(i).padStart(3, '0')}.png'\nduration 3`
         ).join('\n');
         
-        await ffmpeg.writeFile('concat.txt', concatList);
+        ffmpeg.FS('writeFile', 'concat.txt', new TextEncoder().encode(concatList));
 
-        // Encode
-        await ffmpeg.exec([
+        // Encode video
+        updateProgress(20);
+        await ffmpeg.run(
           '-f', 'concat',
           '-safe', '0',
           '-i', 'concat.txt',
@@ -697,13 +696,24 @@
           '-crf', '18',
           '-preset', 'fast',
           'output.mp4'
-        ]);
+        );
 
-        const data = await ffmpeg.readFile('output.mp4');
-        await ffmpeg.deleteFile('output.mp4');
+        updateProgress(90);
+
+        // Read output file
+        const data = ffmpeg.FS('readFile', 'output.mp4');
         
-        return new Uint8Array(data.buffer);
+        // Cleanup
+        ffmpeg.FS('unlink', 'output.mp4');
+        for (let i = 0; i < frames.length; i++) {
+          ffmpeg.FS('unlink', `frame${String(i).padStart(3, '0')}.png`);
+        }
+        ffmpeg.FS('unlink', 'concat.txt');
+
+        updateProgress(100);
+        return new Uint8Array(data);
       } catch (e) {
+        console.error('FFmpeg error:', e);
         throw new Error('FFmpeg encoding failed: ' + e.message);
       }
     }
@@ -740,7 +750,7 @@
         showStatus('Capturing frames...', 'info');
         const frames = await captureFrames();
         
-        showStatus('Encoding video...', 'info');
+        showStatus('Encoding video (this may take a minute)...', 'info');
         const mp4Data = await encodeMP4(frames);
         
         hideProgressBar();
