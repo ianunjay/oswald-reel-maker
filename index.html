@@ -64,6 +64,10 @@
             <button class="btn-primary" id="previewBtn" disabled>👁️ Preview</button>
             <button class="btn-primary" id="exportBtn" disabled>⬇️ Export MP4</button>
         </div>
+        <div class="button-group">
+            <button class="btn-primary" id="previewBtn" disabled>👁️ Preview</button>
+            <button class="btn-primary" id="exportBtn" disabled>⬇️ Export MP4</button>
+        </div>
         <div class="status-message" id="statusMessage"></div>
         <div class="progress-text" id="progressText"></div>
         <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
@@ -87,17 +91,19 @@
             console.log(`[${type}] ${message}`);
         }
 
-        // Load FFmpeg dynamically
+        // Fixed Dynamic Loader targeting correct UMD global variables
         async function loadFFmpegLib() {
             return new Promise((resolve, reject) => {
                 addDebugLog('Starting dynamic FFmpeg load...');
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js';
+                // Using 0.12.6 UMD build
+                script.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.min.js';
                 script.type = 'text/javascript';
                 script.onload = () => {
                     addDebugLog('FFmpeg script loaded from CDN', 'success');
                     let attempts = 0;
                     const checkFFmpeg = () => {
+                        // FIX: Checking standard window.FFmpeg global object allocation layout
                         if (window.FFmpeg && window.FFmpeg.FFmpeg) {
                             addDebugLog('FFmpeg class constructor available!', 'success');
                             resolve();
@@ -105,7 +111,7 @@
                             attempts++;
                             setTimeout(checkFFmpeg, 100);
                         } else {
-                            reject(new Error('FFmpeg global layout did not populate after script load'));
+                            reject(new Error('FFmpeg global layout did not populate after script load. Global variable is: ' + typeof window.FFmpeg));
                         }
                     };
                     checkFFmpeg();
@@ -117,7 +123,10 @@
 
         const ffmpegPromise = loadFFmpegLib();
         ffmpegPromise
-            .then(() => addDebugLog('✓ FFmpeg engine integration active', 'success'))
+            .then(() => {
+                document.getElementById('libStatus').textContent = '✓ FFmpeg engine integration active';
+                document.getElementById('libStatus').className = 'debug-line success';
+            })
             .catch(err => addDebugLog(`✗ FFmpeg module missing: ${err.message}`, 'error'));
 
         // ============================================
@@ -142,7 +151,7 @@
         const LAYOUT = { paddingX: 80, paddingTop: 100, eyebrowY: 160, titleStartY: 260, titleLineHeight: 110, subtitleOffset: 60, bodyOffset: 50, bodyLineHeight: 50, ctaY: 1220, brandX: 1020, brandY: 200 };
 
         // ============================================
-        // DOM ELEMENTS
+        // DOM ELEMENTS & REEL CONFIG
         // ============================================
         const jsonInput = document.getElementById('jsonInput');
         const previewBtn = document.getElementById('previewBtn');
@@ -167,9 +176,6 @@
             }
         }
 
-        // ============================================
-        // UI HELPERS
-        // ============================================
         function showError(message) { errorMessage.textContent = message; errorMessage.classList.add('show'); jsonInput.classList.add('error'); }
         function clearError() { errorMessage.textContent = ''; errorMessage.classList.remove('show'); jsonInput.classList.remove('error'); }
         function showStatus(message, type = 'info') { statusMessage.textContent = message; statusMessage.className = `status-message show ${type}`; }
@@ -195,7 +201,7 @@
         }
 
         // ============================================
-        // CANVAS RENDERING
+        // CANVAS RENDERING LAYOUT
         // ============================================
         function getCtx(canvas) { return canvas.getContext('2d'); }
         function clearCanvas(ctx) { ctx.fillStyle = THEMES[theme].bg; ctx.fillRect(0, 0, 1080, 1350); }
@@ -259,7 +265,7 @@
         });
 
         // ============================================
-        // MP4 ENCODING (Fixed for v0.12.x APIs)
+        // MP4 ENCODING VIA WASM CORE
         // ============================================
         async function captureFrames() {
             const frames = [];
@@ -277,20 +283,17 @@
                 await ffmpegPromise;
                 addDebugLog('Creating modern FFmpeg core object...');
                 
-                // Initialize modern instance structure
                 const ffmpeg = new window.FFmpeg.FFmpeg();
                 
                 ffmpeg.on('progress', ({ progress }) => { updateProgress(Math.round(progress * 100)); });
                 addDebugLog('Loading modules from worker process...');
                 
-                // Absolute structural urls matching core runtime distribution
                 await ffmpeg.load({
                     coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
                     wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm'
                 });
                 addDebugLog('FFmpeg core modules fully isolated', 'success');
 
-                // Write virtual layout files using updated writeFile parameters
                 for (let i = 0; i < frames.length; i++) {
                     const filename = `frame${String(i).padStart(3, '0')}.png`;
                     await ffmpeg.writeFile(filename, frames[i]);
@@ -304,7 +307,6 @@
                 addDebugLog('Executing target transcode routine...');
                 updateProgress(20);
 
-                // Replaced legacy .run() with multi-thread .exec() array sequence
                 await ffmpeg.exec([
                     '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
                     '-vf', 'scale=1080:1350,fps=25',
@@ -315,10 +317,8 @@
                 addDebugLog('Binary container built successfully', 'success');
                 updateProgress(90);
 
-                // Fetch data via modern safe extraction APIs
                 const data = await ffmpeg.readFile('output.mp4');
 
-                // Clean system references to optimize client sandbox RAM boundaries
                 await ffmpeg.deleteFile('output.mp4');
                 for (let i = 0; i < frames.length; i++) {
                     await ffmpeg.deleteFile(`frame${String(i).padStart(3, '0')}.png`);
