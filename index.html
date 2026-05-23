@@ -129,22 +129,6 @@
       cursor: not-allowed;
     }
 
-    .btn-secondary {
-      background: #f0f0f0;
-      color: #1a1a1a;
-      border: 1px solid #ddd;
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: #e0e0e0;
-    }
-
-    .btn-secondary:disabled {
-      background: #f0f0f0;
-      color: #999;
-      cursor: not-allowed;
-    }
-
     .preview-container {
       background: #f9f9f9;
       border-radius: 8px;
@@ -234,14 +218,14 @@
       border: 1px solid #64b5f6;
     }
 
-    #hiddenCanvas {
-      display: none;
+    .status-message.error {
+      background: #ffebee;
+      color: #d32f2f;
+      border: 1px solid #ef5350;
     }
 
-    .placeholder {
-      color: #999;
-      text-align: center;
-      font-size: 14px;
+    #hiddenCanvas {
+      display: none;
     }
   </style>
 </head>
@@ -274,8 +258,9 @@
 
   <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
 
-  <!-- FFmpeg.wasm from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+  <!-- FFmpeg.wasm with explicit corePath -->
+  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
 
   <script>
     // ============================================
@@ -358,12 +343,9 @@
     const warningBanner = document.getElementById('warningBanner');
 
     let currentData = null;
-    let currentSlideIndex = 0;
-    let animationFrameId = null;
     let slides = [];
     let theme = null;
     let brand = null;
-    let ffmpeg = null;
 
     // ============================================
     // BROWSER COMPATIBILITY CHECK
@@ -458,20 +440,6 @@
       ctx.fillRect(0, 0, 1080, 1350);
     }
 
-    function wrapText(ctx, text, x, y, maxWidth, lineHeight, fontSize) {
-      if (!text) return y;
-      
-      const lines = text.split('\n');
-      let currentY = y;
-
-      lines.forEach(line => {
-        ctx.fillText(line, x, currentY);
-        currentY += lineHeight;
-      });
-
-      return currentY;
-    }
-
     function drawEyebrow(ctx, slide) {
       if (!slide.eyebrow) return;
       ctx.fillStyle = THEMES[theme].eyebrow;
@@ -485,7 +453,6 @@
       ctx.fillStyle = THEMES[theme].text;
       ctx.font = FONTS.title;
       ctx.textAlign = 'left';
-      ctx.lineHeight = LAYOUT.titleLineHeight;
       
       const lines = slide.title.split('\n');
       let y = LAYOUT.titleStartY;
@@ -570,10 +537,8 @@
       slides = currentData.slides;
       theme = currentData.theme;
       brand = currentData.brand;
-      currentSlideIndex = 0;
 
       slideCounter.style.display = 'block';
-      const previewCtx = getCtx(previewCanvas);
 
       function animateSlide(index) {
         if (index >= slides.length) {
@@ -584,7 +549,6 @@
         renderSlide(previewCanvas, slides[index], theme, brand);
         slideCounter.textContent = `${index + 1} / ${slides.length}`;
 
-        // Hold slide for 3 seconds, then move to next
         setTimeout(() => {
           animateSlide(index + 1);
         }, 3000);
@@ -626,7 +590,6 @@
       
       showStatus('Rendering preview...', 'info');
       
-      // Wait for fonts to load
       document.fonts.ready.then(() => {
         playPreviewAnimation();
         showStatus('Preview playing', 'success');
@@ -640,7 +603,6 @@
     // ============================================
     async function captureFrames() {
       const frames = [];
-      const ctx = getCtx(hiddenCanvas);
 
       for (let i = 0; i < slides.length; i++) {
         renderSlide(hiddenCanvas, slides[i], theme, brand);
@@ -656,16 +618,43 @@
       return frames;
     }
 
+    async function waitForFFmpegLib() {
+      return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds
+
+        const checkLib = () => {
+          if (window.FFmpeg && window.FFmpeg.createFFmpeg) {
+            resolve();
+          } else if (attempts < maxAttempts) {
+            attempts++;
+            setTimeout(checkLib, 100);
+          } else {
+            reject(new Error('FFmpeg library failed to load after 5 seconds'));
+          }
+        };
+
+        checkLib();
+      });
+    }
+
     async function encodeMP4(frames) {
-      // Check if FFmpeg library is available
-      if (!window.FFmpeg || !window.FFmpeg.createFFmpeg) {
-        throw new Error('FFmpeg library failed to load. Try refreshing the page.');
-      }
-
-      const { createFFmpeg, fetchFile } = window.FFmpeg;
-      const ffmpeg = createFFmpeg({ log: true });
-
       try {
+        // Wait for FFmpeg library to load
+        await waitForFFmpegLib();
+
+        const { createFFmpeg, fetchFile } = window.FFmpeg;
+        
+        // Create FFmpeg instance with explicit core path
+        const ffmpeg = createFFmpeg({
+          log: true,
+          corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js'
+        });
+
+        ffmpeg.on('progress', ({ progress }) => {
+          updateProgress(Math.round(progress * 100));
+        });
+
         if (!ffmpeg.isLoaded()) {
           await ffmpeg.load();
         }
@@ -673,16 +662,15 @@
         // Write each frame to FFmpeg virtual filesystem
         for (let i = 0; i < frames.length; i++) {
           ffmpeg.FS('writeFile', `frame${String(i).padStart(3, '0')}.png`, frames[i]);
-          // Update progress during frame writing
-          updateProgress((i / frames.length) * 20);
+          updateProgress((i / frames.length) * 15);
         }
 
         // Write concat demuxer file
-        const concatList = frames.map((_, i) =>
+        const concatLines = frames.map((_, i) =>
           `file 'frame${String(i).padStart(3, '0')}.png'\nduration 3`
         ).join('\n');
         
-        ffmpeg.FS('writeFile', 'concat.txt', new TextEncoder().encode(concatList));
+        ffmpeg.FS('writeFile', 'concat.txt', new TextEncoder().encode(concatLines));
 
         // Encode video
         updateProgress(20);
@@ -713,8 +701,8 @@
         updateProgress(100);
         return new Uint8Array(data);
       } catch (e) {
-        console.error('FFmpeg error:', e);
-        throw new Error('FFmpeg encoding failed: ' + e.message);
+        console.error('Encoding error:', e);
+        throw new Error('Encoding failed: ' + (e.message || String(e)));
       }
     }
 
@@ -765,7 +753,8 @@
         }, 2000);
       } catch (e) {
         hideProgressBar();
-        showError('Export failed: ' + e.message);
+        showStatus(`Export failed: ${e.message}`, 'error');
+        console.error('Full error:', e);
         exportBtn.disabled = false;
         previewBtn.disabled = false;
       }
