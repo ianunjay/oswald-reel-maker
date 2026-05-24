@@ -1,367 +1,1314 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carousel Reel Maker</title>
-    <script src="https://cdn.jsdelivr.net/npm/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@800&family=Inter+Tight:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter Tight', sans-serif; background: #f5f5f5; padding: 20px; color: #1a1a1a; }
-        .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); padding: 40px; }
-        h1 { margin-bottom: 30px; font-size: 28px; font-weight: 600; }
-        .debug-info { background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 12px; margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-height: 150px; overflow-y: auto; }
-        .debug-line { color: #666; margin: 4px 0; }
-        .debug-line.error { color: #d32f2f; }
-        .debug-line.success { color: #2e7d32; }
-        .warning-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px; color: #856404; display: none; }
-        .warning-banner.show { display: block; }
-        .section { margin-bottom: 30px; }
-        .section-title { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 12px; }
-        textarea { width: 100%; height: 200px; padding: 16px; border: 2px solid #ddd; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; resize: vertical; transition: border-color 0.2s; }
-        textarea:focus { outline: none; border-color: #333; }
-        textarea.error { border-color: #d32f2f; background: #ffebee; }
-        .error-message { color: #d32f2f; font-size: 13px; margin-top: 8px; display: none; }
-        .error-message.show { display: block; }
-        .button-group { display: flex; gap: 12px; margin-bottom: 20px; }
-        button { padding: 12px 24px; font-size: 14px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
-        .btn-primary { background: #1a1a1a; color: white; }
-        .btn-primary:hover:not(:disabled) { background: #333; }
-        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
-        .preview-container { background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px; min-height: 300px; display: flex; align-items: center; justify-content: center; position: relative; }
-        .preview-canvas { width: 100%; max-width: 540px; aspect-ratio: 4 / 5; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); background: white; }
-        .slide-counter { position: absolute; top: 16px; left: 16px; font-size: 13px; color: #666; background: white; padding: 8px 12px; border-radius: 4px; }
-        .progress-bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 8px; display: none; }
-        .progress-bar.show { display: block; }
-        .progress-fill { height: 100%; background: #1a1a1a; width: 0%; transition: width 0.2s; }
-        .progress-text { font-size: 13px; color: #666; text-align: right; margin-bottom: 16px; display: none; }
-        .progress-text.show { display: block; }
-        .status-message { font-size: 14px; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; display: none; }
-        .status-message.show { display: block; }
-        .status-message.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #81c784; }
-        .status-message.info { background: #e3f2fd; color: #1565c0; border: 1px solid #64b5f6; }
-        .status-message.error { background: #ffebee; color: #d32f2f; border: 1px solid #ef5350; }
-        #hiddenCanvas { display: none; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinetic Reel Maker</title>
+
+<!-- Google Fonts — loaded before any JS so Canvas can use them -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@400;700&family=Inter+Tight:wght@400;600;800&display=swap" rel="stylesheet">
+
+<!--
+  FFmpeg 0.11.6 — chosen deliberately over 0.12.x because:
+  - 0.12.x requires SharedArrayBuffer (needs COOP/COEP headers GitHub Pages cannot set)
+  - 0.11.6 uses FS-based API, single-threaded, works on any static host
+  - API: createFFmpeg(), ffmpeg.load(), ffmpeg.FS(), ffmpeg.run()
+-->
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+
+<style>
+:root {
+  --ink: #0e0e0e;
+  --paper: #f7f4ef;
+  --accent: #c0392b;
+  --muted: #888;
+  --border: #ddd;
+  --success: #27ae60;
+  --radius: 6px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter Tight', sans-serif;
+  --serif: 'Fraunces', Georgia, serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  padding: 32px 20px 60px;
+}
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 40px;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 20px;
+}
+.header h1 {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.header .tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Warning banner ── */
+.banner {
+  display: none;
+  background: #fff8e1;
+  border: 1px solid #f0c040;
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #7a5c00;
+  margin-bottom: 24px;
+}
+.banner.show { display: block; }
+
+/* ── Layout grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 32px;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+/* ── Left panel ── */
+.panel-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* JSON input */
+.json-wrap { margin-bottom: 20px; }
+textarea {
+  width: 100%;
+  height: 220px;
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+  background: white;
+  color: var(--ink);
+  transition: border-color 0.15s;
+}
+textarea:focus { outline: none; border-color: var(--ink); }
+textarea.has-error { border-color: var(--accent); background: #fff5f5; }
+
+.field-error {
+  display: none;
+  font-size: 12px;
+  color: var(--accent);
+  margin-top: 6px;
+  font-family: var(--mono);
+}
+.field-error.show { display: block; }
+
+/* Animation preset picker */
+.presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.preset-btn {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  color: var(--ink);
+}
+.preset-btn:hover { border-color: var(--ink); }
+.preset-btn.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: white;
+}
+.preset-btn .preset-name { font-weight: 700; display: block; margin-bottom: 2px; }
+.preset-btn .preset-desc { font-size: 10px; opacity: 0.6; }
+
+/* Theme picker */
+.themes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.theme-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+.theme-swatch.active {
+  border-color: var(--ink);
+  transform: scale(1.15);
+}
+.theme-swatch[title]::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-family: var(--mono);
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+/* Duration slider */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.slider-row label {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+input[type=range] {
+  flex: 1;
+  accent-color: var(--ink);
+}
+.slider-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Action buttons */
+.actions { display: flex; gap: 10px; margin-bottom: 20px; }
+.btn {
+  padding: 12px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary {
+  background: var(--ink);
+  color: white;
+  flex: 1;
+}
+.btn-primary:hover:not(:disabled) { background: #333; }
+.btn-primary:disabled { background: #ccc; cursor: not-allowed; color: #999; }
+.btn-ghost {
+  background: white;
+  color: var(--ink);
+  border: 1.5px solid var(--border);
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--ink); }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Progress */
+.progress-wrap { margin-bottom: 16px; display: none; }
+.progress-wrap.show { display: block; }
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--ink);
+  width: 0%;
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+.progress-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Status */
+.status {
+  display: none;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.status.show { display: block; }
+.status.info { background: #e8f0fe; color: #1a4090; border: 1px solid #aac4f7; }
+.status.success { background: #e6f9f0; color: #145a32; border: 1px solid #7dcea0; }
+.status.error { background: #fdeded; color: #7b1c1c; border: 1px solid #f1a7a7; }
+
+/* Debug console */
+.debug-wrap {
+  margin-top: 16px;
+}
+.debug-toggle {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.debug-console {
+  display: none;
+  margin-top: 8px;
+  background: #1a1a1a;
+  color: #ccc;
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.7;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.debug-console.open { display: block; }
+.log-ok { color: #5dbb6a; }
+.log-err { color: #f07070; }
+.log-warn { color: #f0c060; }
+.log-info { color: #70b8f0; }
+
+/* ── Right panel — Preview ── */
+.preview-panel {
+  position: sticky;
+  top: 24px;
+}
+.preview-frame {
+  background: #e8e4dc;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+.preview-screen {
+  width: 100%;
+  aspect-ratio: 4/5;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  background: #faf8f4;
+}
+#previewCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 8px;
+}
+.preview-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.slide-dots {
+  display: flex;
+  gap: 4px;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #bbb;
+  transition: background 0.2s;
+}
+.dot.active { background: var(--ink); }
+.slide-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Hidden encoding canvas — full 1080x1350 */
+#encodeCanvas { display: none; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎬 Carousel Reel Maker</h1>
-        <div class="debug-info" id="debugInfo">
-            <div class="debug-line">🔍 Debug Info:</div>
-            <div class="debug-line" id="libStatus">Loading FFmpeg library...</div>
-        </div>
-        <div class="warning-banner" id="warningBanner"></div>
-        <div class="section">
-            <div class="section-title">Step 1: Paste JSON</div>
-            <textarea id="jsonInput" placeholder="Paste your carousel JSON here..."></textarea>
-            <div class="error-message" id="errorMessage"></div>
-        </div>
-        <div class="button-group">
-            <button class="btn-primary" id="previewBtn" disabled>👁️ Preview</button>
-            <button class="btn-primary" id="exportBtn" disabled>⬇️ Export MP4</button>
-        </div>
-        <div class="button-group">
-            <button class="btn-primary" id="previewBtn" disabled>👁️ Preview</button>
-            <button class="btn-primary" id="exportBtn" disabled>⬇️ Export MP4</button>
-        </div>
-        <div class="status-message" id="statusMessage"></div>
-        <div class="progress-text" id="progressText"></div>
-        <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
-        <div class="preview-container">
-            <div class="slide-counter" id="slideCounter" style="display: none;"></div>
-            <canvas id="previewCanvas" class="preview-canvas" width="1080" height="1350"></canvas>
-        </div>
+
+<div class="shell">
+
+  <header class="header">
+    <h1>Kinetic Reel Maker</h1>
+    <span class="tag">For Chrome on Desktop &bull; Exports 1080&times;1350 MP4</span>
+  </header>
+
+  <div class="banner" id="warningBanner"></div>
+
+  <div class="grid">
+
+    <!-- ── LEFT PANEL ── -->
+    <div class="left-panel">
+
+      <!-- JSON INPUT -->
+      <div class="json-wrap">
+        <div class="panel-label">1 &mdash; Paste carousel JSON</div>
+        <textarea id="jsonInput" placeholder='{"theme":"cream","brand":"Career Roads","slides":[{"type":"hook","eyebrow":"real story","title":"₹18 LPA\nFRESHER\nNO MBA","subtitle":"No degree. Just 15 exams.","body":"","cta":"swipe"}]}'></textarea>
+        <div class="field-error" id="jsonError"></div>
+      </div>
+
+      <!-- ANIMATION PRESET -->
+      <div class="panel-label">2 &mdash; Animation preset</div>
+      <div class="presets" id="presetPicker">
+        <button class="preset-btn active" data-preset="slam">
+          <span class="preset-name">Slam</span>
+          <span class="preset-desc">Words crash in hard</span>
+        </button>
+        <button class="preset-btn" data-preset="drift">
+          <span class="preset-name">Drift</span>
+          <span class="preset-desc">Smooth upward float</span>
+        </button>
+        <button class="preset-btn" data-preset="typewriter">
+          <span class="preset-name">Typewriter</span>
+          <span class="preset-desc">Characters appear one by one</span>
+        </button>
+        <button class="preset-btn" data-preset="bounce">
+          <span class="preset-name">Bounce</span>
+          <span class="preset-desc">Elastic spring entry</span>
+        </button>
+      </div>
+
+      <!-- THEME PICKER -->
+      <div class="panel-label">3 &mdash; Theme</div>
+      <div class="themes" id="themePicker">
+        <div class="theme-swatch active" data-theme="cream" title="Cream"
+             style="background: linear-gradient(135deg, #faf8f4 50%, #b14e2f 50%)"></div>
+        <div class="theme-swatch" data-theme="dark-minimal" title="Dark"
+             style="background: linear-gradient(135deg, #0f0f0f 50%, #f5f5f5 50%)"></div>
+        <div class="theme-swatch" data-theme="dark-purple" title="Purple"
+             style="background: linear-gradient(135deg, #1a0a2e 50%, #9b6dff 50%)"></div>
+        <div class="theme-swatch" data-theme="dark-magenta" title="Magenta"
+             style="background: linear-gradient(135deg, #1a0a14 50%, #d44d8a 50%)"></div>
+      </div>
+
+      <!-- DURATION -->
+      <div class="slider-row">
+        <label>Slide duration</label>
+        <input type="range" id="durationSlider" min="2" max="6" step="0.5" value="3">
+        <span class="slider-val" id="durationVal">3s</span>
+      </div>
+
+      <!-- ACTIONS -->
+      <div class="actions">
+        <button class="btn btn-primary" id="previewBtn" disabled>▶ Preview</button>
+        <button class="btn btn-ghost" id="stopBtn" disabled>■ Stop</button>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" id="exportBtn" disabled>⬇ Export MP4</button>
+      </div>
+
+      <!-- PROGRESS -->
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel">Preparing...</div>
+      </div>
+
+      <!-- STATUS -->
+      <div class="status" id="statusMsg"></div>
+
+      <!-- DEBUG CONSOLE -->
+      <div class="debug-wrap">
+        <button class="debug-toggle" id="debugToggle">Show debug console</button>
+        <div class="debug-console" id="debugConsole"></div>
+      </div>
+
     </div>
-    <canvas id="hiddenCanvas" width="1080" height="1350"></canvas>
 
-    <script>
-        // ============================================
-        // DEBUG & LIBRARY LOADING
-        // ============================================
-        const debugInfo = document.getElementById('debugInfo');
-        function addDebugLog(message, type = 'default') {
-            const line = document.createElement('div');
-            line.className = `debug-line ${type}`;
-            line.textContent = message;
-            debugInfo.appendChild(line);
-            console.log(`[${type}] ${message}`);
+    <!-- ── RIGHT PANEL — PREVIEW ── -->
+    <div class="preview-panel">
+      <div class="preview-frame">
+        <div class="preview-screen">
+          <canvas id="previewCanvas" width="540" height="675"></canvas>
+        </div>
+        <div class="preview-controls">
+          <div class="slide-dots" id="slideDots"></div>
+          <div class="slide-num" id="slideNum">— / —</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+
+</div><!-- /shell -->
+
+<!-- Hidden full-res canvas for encoding -->
+<canvas id="encodeCanvas" width="1080" height="1350"></canvas>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════
+// DEBUG LOGGER
+// ═══════════════════════════════════════════════════════
+const debugConsoleEl = document.getElementById('debugConsole');
+const debugToggleBtn = document.getElementById('debugToggle');
+let debugOpen = false;
+
+debugToggleBtn.addEventListener('click', () => {
+  debugOpen = !debugOpen;
+  debugConsoleEl.classList.toggle('open', debugOpen);
+  debugToggleBtn.textContent = debugOpen ? 'Hide debug console' : 'Show debug console';
+});
+
+function log(msg, type = 'info') {
+  const line = document.createElement('div');
+  const ts = new Date().toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  line.className = `log-${type}`;
+  line.textContent = `[${ts}] ${msg}`;
+  debugConsoleEl.appendChild(line);
+  debugConsoleEl.scrollTop = debugConsoleEl.scrollHeight;
+  console.log(`[kinetic-${type}] ${msg}`);
+}
+
+// ═══════════════════════════════════════════════════════
+// THEME DEFINITIONS
+// ═══════════════════════════════════════════════════════
+const THEMES = {
+  'cream':        { bg: '#faf8f4', text: '#1a1a1a', eyebrow: '#b14e2f', accent: '#b14e2f', brand: '#ccbfa8', cta: '#b14e2f' },
+  'dark-minimal': { bg: '#0f0f0f', text: '#f5f5f5', eyebrow: '#777',    accent: '#f5f5f5', brand: '#333',    cta: '#f5f5f5' },
+  'dark-purple':  { bg: '#1a0a2e', text: '#f0eaff', eyebrow: '#9b6dff', accent: '#9b6dff', brand: '#3d2060', cta: '#9b6dff' },
+  'dark-magenta': { bg: '#1a0a14', text: '#ffe0f0', eyebrow: '#d44d8a', accent: '#d44d8a', brand: '#4a1530', cta: '#d44d8a' }
+};
+
+// ═══════════════════════════════════════════════════════
+// LAYOUT CONSTANTS (at 1080×1350)
+// ═══════════════════════════════════════════════════════
+const L = {
+  px: 90,           // left/right padding
+  eyebrowY: 170,
+  titleStartY: 280,
+  titleLineH: 118,
+  subtitleGap: 64,
+  bodyGap: 48,
+  bodyLineH: 52,
+  ctaY: 1240,
+  brandX: 1030,
+  brandStartY: 180,
+  maxWidth: 900      // text wrap width
+};
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let currentData  = null;
+let activePreset = 'slam';
+let activeTheme  = 'cream';
+let slideDuration = 3;   // seconds
+let animFrame    = null;  // requestAnimationFrame handle
+let animRunning  = false;
+let ffmpegReady  = false;
+let ffmpegInst   = null;
+
+// ═══════════════════════════════════════════════════════
+// DOM REFS
+// ═══════════════════════════════════════════════════════
+const jsonInput    = document.getElementById('jsonInput');
+const jsonError    = document.getElementById('jsonError');
+const previewBtn   = document.getElementById('previewBtn');
+const stopBtn      = document.getElementById('stopBtn');
+const exportBtn    = document.getElementById('exportBtn');
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressLabel= document.getElementById('progressLabel');
+const statusMsg    = document.getElementById('statusMsg');
+const previewCanvas= document.getElementById('previewCanvas');
+const encodeCanvas = document.getElementById('encodeCanvas');
+const slideDots    = document.getElementById('slideDots');
+const slideNumEl   = document.getElementById('slideNum');
+const warningBanner= document.getElementById('warningBanner');
+const durationSlider= document.getElementById('durationSlider');
+const durationVal  = document.getElementById('durationVal');
+
+const pCtx = previewCanvas.getContext('2d');
+const eCtx = encodeCanvas.getContext('2d');
+
+// ═══════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════
+function showStatus(msg, type = 'info') {
+  statusMsg.textContent = msg;
+  statusMsg.className = `status show ${type}`;
+}
+function clearStatus() { statusMsg.className = 'status'; }
+
+function showProgress(label, pct) {
+  progressWrap.classList.add('show');
+  progressLabel.textContent = label;
+  progressFill.style.width = Math.min(100, pct) + '%';
+}
+function hideProgress() {
+  progressWrap.classList.remove('show');
+  progressFill.style.width = '0%';
+}
+
+function setButtons(state) {
+  // state: 'idle' | 'previewing' | 'encoding'
+  if (state === 'idle') {
+    const hasData = !!currentData;
+    previewBtn.disabled = !hasData;
+    exportBtn.disabled  = !hasData || !ffmpegReady;
+    stopBtn.disabled    = true;
+  } else if (state === 'previewing') {
+    previewBtn.disabled = true;
+    stopBtn.disabled    = false;
+    exportBtn.disabled  = true;
+  } else if (state === 'encoding') {
+    previewBtn.disabled = true;
+    stopBtn.disabled    = true;
+    exportBtn.disabled  = true;
+  }
+}
+
+function buildDots(n) {
+  slideDots.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    slideDots.appendChild(d);
+  }
+}
+function setActiveDot(i, n) {
+  document.querySelectorAll('.dot').forEach((d, idx) => d.classList.toggle('active', idx === i));
+  slideNumEl.textContent = `${i + 1} / ${n}`;
+}
+
+// ═══════════════════════════════════════════════════════
+// BROWSER CHECK
+// ═══════════════════════════════════════════════════════
+(function checkBrowser() {
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+  if (isSafari) {
+    warningBanner.textContent = '⚠️ Safari has limited WebAssembly support. Use Chrome or Firefox on desktop for MP4 export.';
+    warningBanner.classList.add('show');
+    log('Safari detected — export may fail', 'warn');
+  } else if (isMobile) {
+    warningBanner.textContent = '⚠️ Mobile may run out of memory during MP4 encoding. Preview works, but export on desktop is more reliable.';
+    warningBanner.classList.add('show');
+    log('Mobile detected — encoding may fail', 'warn');
+  } else {
+    log('Chrome/Firefox desktop detected — full support', 'ok');
+  }
+})();
+
+// ═══════════════════════════════════════════════════════
+// FFMPEG INIT (0.11.6 — no SharedArrayBuffer required)
+// ═══════════════════════════════════════════════════════
+async function initFFmpeg() {
+  try {
+    log('Checking FFmpeg availability...');
+
+    if (typeof window.FFmpeg === 'undefined') {
+      throw new Error('FFmpeg global not found — CDN script may have failed to load');
+    }
+
+    const { createFFmpeg } = window.FFmpeg;
+    if (typeof createFFmpeg !== 'function') {
+      throw new Error(`createFFmpeg not a function — got: ${typeof createFFmpeg}. Global keys: ${Object.keys(window.FFmpeg).join(', ')}`);
+    }
+
+    log('Creating FFmpeg instance...');
+    ffmpegInst = createFFmpeg({
+      log: false,   // we handle logging ourselves
+      corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+      progress: ({ ratio }) => {
+        const pct = Math.round(ratio * 100);
+        showProgress(`Encoding… ${pct}%`, 15 + pct * 0.8);
+        log(`Encode progress: ${pct}%`, 'info');
+      }
+    });
+
+    log('Loading FFmpeg core (WASM)... this takes ~10s first time');
+    showStatus('Loading FFmpeg engine (one-time, ~10s)…', 'info');
+    await ffmpegInst.load();
+
+    ffmpegReady = true;
+    log('FFmpeg ready ✓', 'ok');
+    showStatus('FFmpeg ready. Paste JSON and export.', 'success');
+    setTimeout(clearStatus, 3000);
+    setButtons('idle');
+
+  } catch (err) {
+    log(`FFmpeg init failed: ${err.message}`, 'err');
+    showStatus(`FFmpeg failed to load: ${err.message}. Preview still works — for MP4, try refreshing on Chrome.`, 'error');
+    // Preview still works without FFmpeg, just disable export
+    exportBtn.disabled = true;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// FONT LOADING — must await before any Canvas text
+// ═══════════════════════════════════════════════════════
+async function waitForFonts() {
+  log('Waiting for fonts...');
+  await document.fonts.ready;
+  // Explicitly load the weights we use in Canvas
+  await Promise.all([
+    document.fonts.load('800 40px "Fraunces"'),
+    document.fonts.load('400 16px "Inter Tight"'),
+    document.fonts.load('700 14px "JetBrains Mono"'),
+  ]);
+  // Verify
+  const fraunces = document.fonts.check('800 40px "Fraunces"');
+  const inter    = document.fonts.check('400 16px "Inter Tight"');
+  const mono     = document.fonts.check('700 14px "JetBrains Mono"');
+  log(`Fonts — Fraunces: ${fraunces}, Inter Tight: ${inter}, JetBrains Mono: ${mono}`, fraunces && inter ? 'ok' : 'warn');
+  if (!fraunces) log('Fraunces not loaded — Canvas will fall back to Georgia', 'warn');
+}
+
+// ═══════════════════════════════════════════════════════
+// JSON VALIDATION
+// ═══════════════════════════════════════════════════════
+function validateJSON(raw) {
+  const data = JSON.parse(raw);
+  if (!data.slides || !Array.isArray(data.slides) || data.slides.length === 0)
+    throw new Error('"slides" must be a non-empty array');
+  if (!data.theme || !THEMES[data.theme])
+    throw new Error(`"theme" must be one of: ${Object.keys(THEMES).join(', ')}`);
+  data.slides.forEach((s, i) => {
+    if (!s.title) throw new Error(`slide[${i}] missing "title"`);
+  });
+  return data;
+}
+
+jsonInput.addEventListener('input', () => {
+  jsonError.className = 'field-error';
+  jsonInput.classList.remove('has-error');
+  const raw = jsonInput.value.trim();
+  if (!raw) { currentData = null; setButtons('idle'); return; }
+  try {
+    currentData = validateJSON(raw);
+    // Sync theme picker to JSON theme
+    setActiveTheme(currentData.theme);
+    buildDots(currentData.slides.length);
+    setActiveDot(0, currentData.slides.length);
+    setButtons('idle');
+    log(`Parsed ${currentData.slides.length} slides, theme: ${currentData.theme}`, 'ok');
+  } catch (e) {
+    currentData = null;
+    jsonError.textContent = e.message;
+    jsonError.className = 'field-error show';
+    jsonInput.classList.add('has-error');
+    setButtons('idle');
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// PRESET PICKER
+// ═══════════════════════════════════════════════════════
+document.getElementById('presetPicker').addEventListener('click', e => {
+  const btn = e.target.closest('.preset-btn');
+  if (!btn) return;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activePreset = btn.dataset.preset;
+  log(`Preset: ${activePreset}`);
+});
+
+// ═══════════════════════════════════════════════════════
+// THEME PICKER
+// ═══════════════════════════════════════════════════════
+function setActiveTheme(t) {
+  if (!THEMES[t]) return;
+  activeTheme = t;
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.theme === t);
+  });
+}
+
+document.getElementById('themePicker').addEventListener('click', e => {
+  const sw = e.target.closest('.theme-swatch');
+  if (!sw) return;
+  setActiveTheme(sw.dataset.theme);
+  log(`Theme: ${activeTheme}`);
+});
+
+// ═══════════════════════════════════════════════════════
+// DURATION SLIDER
+// ═══════════════════════════════════════════════════════
+durationSlider.addEventListener('input', () => {
+  slideDuration = parseFloat(durationSlider.value);
+  durationVal.textContent = `${slideDuration}s`;
+});
+
+// ═══════════════════════════════════════════════════════
+// CANVAS DRAWING — base (shared by preview + encode)
+// ═══════════════════════════════════════════════════════
+function scaleOf(canvas) {
+  // preview canvas is 540×675, encode is 1080×1350
+  return canvas.width / 1080;
+}
+
+function drawStaticSlide(canvas, ctx, slide, themeKey) {
+  const s   = scaleOf(canvas);
+  const T   = THEMES[themeKey];
+  const W   = canvas.width;
+  const H   = canvas.height;
+  const px  = L.px * s;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = T.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Accent stripe — thin left edge
+  ctx.fillStyle = T.accent;
+  ctx.fillRect(0, 0, 6 * s, H);
+
+  let curY = L.eyebrowY * s;
+
+  // Eyebrow
+  if (slide.eyebrow) {
+    ctx.fillStyle = T.eyebrow;
+    ctx.font = `500 ${28 * s}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText(slide.eyebrow.toUpperCase(), px, curY);
+  }
+  curY = L.titleStartY * s;
+
+  // Title — multi-line
+  if (slide.title) {
+    ctx.fillStyle = T.text;
+    ctx.font = `800 ${96 * s}px "Fraunces", Georgia, serif`;
+    ctx.textAlign = 'left';
+    const lines = slide.title.split('\n');
+    lines.forEach(line => {
+      ctx.fillText(line, px, curY, L.maxWidth * s);
+      curY += L.titleLineH * s;
+    });
+  }
+
+  // Subtitle
+  if (slide.subtitle) {
+    curY += L.subtitleGap * s * 0.3;
+    ctx.fillStyle = T.text;
+    ctx.globalAlpha = 0.75;
+    ctx.font = `400 ${36 * s}px "Inter Tight", sans-serif`;
+    ctx.fillText(slide.subtitle, px, curY, L.maxWidth * s);
+    ctx.globalAlpha = 1;
+    curY += L.subtitleGap * s;
+  }
+
+  // Body
+  if (slide.body) {
+    curY += L.bodyGap * s * 0.3;
+    ctx.fillStyle = T.text;
+    ctx.globalAlpha = 0.65;
+    ctx.font = `400 ${32 * s}px "Inter Tight", sans-serif`;
+    const lines = slide.body.split('\n');
+    lines.forEach(line => {
+      ctx.fillText(line, px, curY, L.maxWidth * s);
+      curY += L.bodyLineH * s;
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // CTA
+  if (slide.cta) {
+    ctx.fillStyle = T.cta;
+    ctx.font = `700 ${26 * s}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText(slide.cta.toUpperCase(), px, L.ctaY * s);
+  }
+
+  // Brand — vertical right edge
+  const brand = currentData?.brand || '';
+  if (brand) {
+    ctx.save();
+    ctx.fillStyle = T.brand;
+    ctx.font = `400 ${22 * s}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    ctx.translate(L.brandX * s, L.brandStartY * s);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(brand.toUpperCase(), 0, 0);
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ANIMATION PRESETS
+// Returns an eased value 0→1 given progress 0→1 and preset name
+// ═══════════════════════════════════════════════════════
+function easeOutExpo(t) { return t === 1 ? 1 : 1 - Math.pow(2, -10 * t); }
+function easeOutBounce(t) {
+  const n1 = 7.5625, d1 = 2.75;
+  if (t < 1 / d1) return n1 * t * t;
+  if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+  if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+  return n1 * (t -= 2.625 / d1) * t + 0.984375;
+}
+function easeInOutQuad(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+
+// Each preset returns: { offsetY, scale, alpha, charReveal } for a given t (0-1)
+const PRESETS = {
+  slam: (t) => ({
+    offsetY: (1 - easeOutExpo(t)) * 60,
+    scale:   0.7 + 0.3 * easeOutExpo(t),
+    alpha:   Math.min(1, t * 3),
+    charReveal: 1
+  }),
+  drift: (t) => ({
+    offsetY: (1 - easeOutExpo(t)) * 40,
+    scale:   1,
+    alpha:   easeOutExpo(t),
+    charReveal: 1
+  }),
+  typewriter: (t) => ({
+    offsetY: 0,
+    scale:   1,
+    alpha:   1,
+    charReveal: t  // 0→1 fraction of chars to show
+  }),
+  bounce: (t) => ({
+    offsetY: (1 - easeOutBounce(t)) * 50,
+    scale:   1,
+    alpha:   Math.min(1, t * 2),
+    charReveal: 1
+  })
+};
+
+// ═══════════════════════════════════════════════════════
+// ANIMATED PREVIEW — runs on previewCanvas (540×675)
+// Each slide: animIn (0.5s) → hold → animOut (0.3s)
+// ═══════════════════════════════════════════════════════
+const ANIM_IN_MS  = 600;
+const ANIM_OUT_MS = 300;
+
+function stopPreview() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  animRunning = false;
+  setButtons('idle');
+  stopBtn.disabled = true;
+}
+
+async function runPreview() {
+  if (!currentData) return;
+  stopPreview();
+  animRunning = true;
+  setButtons('previewing');
+
+  const slides   = currentData.slides;
+  const themeKey = activeTheme || currentData.theme;
+  const holdMs   = slideDuration * 1000;
+  const preset   = PRESETS[activePreset] || PRESETS.slam;
+
+  log(`Preview start: ${slides.length} slides, preset=${activePreset}, theme=${themeKey}, duration=${slideDuration}s`);
+
+  for (let i = 0; i < slides.length; i++) {
+    if (!animRunning) break;
+    setActiveDot(i, slides.length);
+    const slide = slides[i];
+
+    // ── ANIMATE IN ──
+    const inStart = performance.now();
+    await new Promise(resolve => {
+      function frame() {
+        if (!animRunning) { resolve(); return; }
+        const elapsed = performance.now() - inStart;
+        const t = Math.min(1, elapsed / ANIM_IN_MS);
+        const { offsetY, scale, alpha, charReveal } = preset(t);
+
+        drawAnimatedSlide(previewCanvas, pCtx, slide, themeKey, { offsetY, scale, alpha, charReveal });
+
+        if (t < 1) {
+          animFrame = requestAnimationFrame(frame);
+        } else {
+          resolve();
         }
+      }
+      animFrame = requestAnimationFrame(frame);
+    });
 
-        // Fixed Dynamic Loader targeting correct UMD global variables
-        async function loadFFmpegLib() {
-            return new Promise((resolve, reject) => {
-                addDebugLog('Starting dynamic FFmpeg load...');
-                const script = document.createElement('script');
-                // Using 0.12.6 UMD build
-                script.src = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.min.js';
-                script.type = 'text/javascript';
-                script.onload = () => {
-                    addDebugLog('FFmpeg script loaded from CDN', 'success');
-                    let attempts = 0;
-                    const checkFFmpeg = () => {
-                        // FIX: Checking standard window.FFmpeg global object allocation layout
-                        if (window.FFmpeg && window.FFmpeg.FFmpeg) {
-                            addDebugLog('FFmpeg class constructor available!', 'success');
-                            resolve();
-                        } else if (attempts < 20) {
-                            attempts++;
-                            setTimeout(checkFFmpeg, 100);
-                        } else {
-                            reject(new Error('FFmpeg global layout did not populate after script load. Global variable is: ' + typeof window.FFmpeg));
-                        }
-                    };
-                    checkFFmpeg();
-                };
-                script.onerror = () => { reject(new Error('Failed to download script from CDN')); };
-                document.head.appendChild(script);
-            });
+    // ── HOLD ──
+    if (!animRunning) break;
+    await new Promise(resolve => {
+      const holdStart = performance.now();
+      function hold() {
+        if (!animRunning) { resolve(); return; }
+        if (performance.now() - holdStart < holdMs) {
+          animFrame = requestAnimationFrame(hold);
+        } else {
+          resolve();
         }
+      }
+      animFrame = requestAnimationFrame(hold);
+    });
 
-        const ffmpegPromise = loadFFmpegLib();
-        ffmpegPromise
-            .then(() => {
-                document.getElementById('libStatus').textContent = '✓ FFmpeg engine integration active';
-                document.getElementById('libStatus').className = 'debug-line success';
-            })
-            .catch(err => addDebugLog(`✗ FFmpeg module missing: ${err.message}`, 'error'));
-
-        // ============================================
-        // THEME COLORS
-        // ============================================
-        const THEMES = {
-            'cream': { bg: '#faf8f4', text: '#1a1a1a', eyebrow: '#b14e2f', cta: '#b14e2f', brand: '#ccbfa8' },
-            'dark-minimal': { bg: '#0f0f0f', text: '#f5f5f5', eyebrow: '#888888', cta: '#ffffff', brand: '#333333' },
-            'dark-purple': { bg: '#1a0a2e', text: '#f0eaff', eyebrow: '#9b6dff', cta: '#9b6dff', brand: '#3d2060' },
-            'dark-magenta': { bg: '#1a0a14', text: '#ffe0f0', eyebrow: '#d44d8a', cta: '#d44d8a', brand: '#4a1530' }
-        };
-
-        const FONTS = {
-            eyebrow:  '500 28px "JetBrains Mono", monospace',
-            title:    '800 96px "Fraunces", Georgia, serif',
-            subtitle: '400 36px "Inter Tight", sans-serif',
-            body:     '400 32px "Inter Tight", sans-serif',
-            cta:      '600 26px "JetBrains Mono", monospace',
-            brand:    '400 24px "JetBrains Mono", monospace'
-        };
-
-        const LAYOUT = { paddingX: 80, paddingTop: 100, eyebrowY: 160, titleStartY: 260, titleLineHeight: 110, subtitleOffset: 60, bodyOffset: 50, bodyLineHeight: 50, ctaY: 1220, brandX: 1020, brandY: 200 };
-
-        // ============================================
-        // DOM ELEMENTS & REEL CONFIG
-        // ============================================
-        const jsonInput = document.getElementById('jsonInput');
-        const previewBtn = document.getElementById('previewBtn');
-        const exportBtn = document.getElementById('exportBtn');
-        const errorMessage = document.getElementById('errorMessage');
-        const previewCanvas = document.getElementById('previewCanvas');
-        const hiddenCanvas = document.getElementById('hiddenCanvas');
-        const statusMessage = document.getElementById('statusMessage');
-        const progressBar = document.getElementById('progressBar');
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        const slideCounter = document.getElementById('slideCounter');
-        const warningBanner = document.getElementById('warningBanner');
-        let currentData = null, slides = [], theme = null, brand = null;
-
-        function checkBrowserCompatibility() {
-            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-            const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-            if (isSafari || isMobile) {
-                warningBanner.textContent = '⚠️ Best used on Chrome or Firefox on desktop. Mobile may run out of memory during encoding.';
-                warningBanner.classList.add('show');
-            }
+    // ── ANIMATE OUT (fade) ──
+    if (!animRunning || i === slides.length - 1) break;
+    const outStart = performance.now();
+    await new Promise(resolve => {
+      function frame() {
+        if (!animRunning) { resolve(); return; }
+        const elapsed = performance.now() - outStart;
+        const t = Math.min(1, elapsed / ANIM_OUT_MS);
+        const alpha = 1 - easeInOutQuad(t);
+        pCtx.globalAlpha = alpha;
+        drawStaticSlide(previewCanvas, pCtx, slide, themeKey);
+        pCtx.globalAlpha = 1;
+        if (t < 1) {
+          animFrame = requestAnimationFrame(frame);
+        } else {
+          resolve();
         }
+      }
+      animFrame = requestAnimationFrame(frame);
+    });
+  }
 
-        function showError(message) { errorMessage.textContent = message; errorMessage.classList.add('show'); jsonInput.classList.add('error'); }
-        function clearError() { errorMessage.textContent = ''; errorMessage.classList.remove('show'); jsonInput.classList.remove('error'); }
-        function showStatus(message, type = 'info') { statusMessage.textContent = message; statusMessage.className = `status-message show ${type}`; }
-        function clearStatus() { statusMessage.classList.remove('show'); }
-        function updateProgress(percent) { progressFill.style.width = percent + '%'; progressText.textContent = `Encoding: ${Math.round(percent)}%`; }
-        function showProgressBar() { progressBar.classList.add('show'); progressText.classList.add('show'); }
-        function hideProgressBar() { progressBar.classList.remove('show'); progressText.classList.remove('show'); }
+  if (animRunning) {
+    log('Preview complete', 'ok');
+    stopPreview();
+  }
+}
 
-        function validateSchema(data) {
-            if (!data.slides || !Array.isArray(data.slides)) throw new Error('slides array required');
-            if (!data.theme) throw new Error('theme required');
-            if (data.slides.length < 1) throw new Error('at least 1 slide required');
-            data.slides.forEach((s, i) => {
-                if (!s.type) throw new Error(`slide ${i}: type required`);
-                if (!s.title) throw new Error(`slide ${i}: title required`);
-            });
-        }
+// Draws a slide with kinetic transform applied (preview scale)
+function drawAnimatedSlide(canvas, ctx, slide, themeKey, { offsetY, scale, alpha, charReveal }) {
+  const s = scaleOf(canvas);
+  const T = THEMES[themeKey];
+  const W = canvas.width;
+  const H = canvas.height;
+  const px = L.px * s;
 
-        function parseJSON(input) {
-            const data = JSON.parse(input);
-            validateSchema(data);
-            return data;
-        }
+  ctx.clearRect(0, 0, W, H);
 
-        // ============================================
-        // CANVAS RENDERING LAYOUT
-        // ============================================
-        function getCtx(canvas) { return canvas.getContext('2d'); }
-        function clearCanvas(ctx) { ctx.fillStyle = THEMES[theme].bg; ctx.fillRect(0, 0, 1080, 1350); }
-        function drawEyebrow(ctx, slide) { if (!slide.eyebrow) return; ctx.fillStyle = THEMES[theme].eyebrow; ctx.font = FONTS.eyebrow; ctx.textAlign = 'left'; ctx.fillText(slide.eyebrow.toUpperCase(), LAYOUT.paddingX, LAYOUT.eyebrowY); }
-        
-        function drawTitle(ctx, slide) {
-            if (!slide.title) return;
-            ctx.fillStyle = THEMES[theme].text; ctx.font = FONTS.title; ctx.textAlign = 'left';
-            const lines = slide.title.split('\n'); let y = LAYOUT.titleStartY;
-            lines.forEach(line => { ctx.fillText(line, LAYOUT.paddingX, y); y += LAYOUT.titleLineHeight; });
-            return y;
-        }
-        function drawSubtitle(ctx, slide, titleEndY) { if (!slide.subtitle) return titleEndY; ctx.fillStyle = THEMES[theme].text; ctx.font = FONTS.subtitle; ctx.textAlign = 'left'; const y = titleEndY + LAYOUT.subtitleOffset; ctx.fillText(slide.subtitle, LAYOUT.paddingX, y); return y + 50; }
-        function drawBody(ctx, slide, subtitleEndY) { if (!slide.body) return subtitleEndY; ctx.fillStyle = THEMES[theme].text; ctx.font = FONTS.body; ctx.textAlign = 'left'; const lines = slide.body.split('\n'); let y = subtitleEndY + LAYOUT.bodyOffset; lines.forEach(line => { ctx.fillText(line, LAYOUT.paddingX, y); y += LAYOUT.bodyLineHeight; }); return y; }
-        function drawCTA(ctx, slide) { if (!slide.cta) return; ctx.fillStyle = THEMES[theme].cta; ctx.font = FONTS.cta; ctx.textAlign = 'left'; ctx.fillText(slide.cta.toUpperCase(), LAYOUT.paddingX, LAYOUT.ctaY); }
-        function drawBrandMark(ctx, brandText) { if (!brandText) return; ctx.save(); ctx.fillStyle = THEMES[theme].brand; ctx.font = FONTS.brand; ctx.textAlign = 'left'; ctx.translate(LAYOUT.brandX, LAYOUT.brandY); ctx.rotate(-Math.PI / 2); ctx.fillText(brandText.toUpperCase(), 0, 0); ctx.restore(); }
+  // Background — always full
+  ctx.fillStyle = T.bg;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = T.accent;
+  ctx.fillRect(0, 0, 6 * s, H);
 
-        function renderSlide(canvas, slide, themeKey, brandText) {
-            theme = themeKey; const ctx = getCtx(canvas); clearCanvas(ctx);
-            drawEyebrow(ctx, slide); const titleEndY = drawTitle(ctx, slide);
-            const subtitleEndY = drawSubtitle(ctx, slide, titleEndY);
-            drawBody(ctx, slide, subtitleEndY); drawCTA(ctx, slide); drawBrandMark(ctx, brandText);
-        }
+  // Apply kinetic transform to content layer
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(0, offsetY * s);
+  if (scale !== 1) {
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-W / 2, -H / 2);
+  }
 
-        async function ensureFontsLoaded() {
-            await Promise.all([
-                document.fonts.load('800 96px "Fraunces"'),
-                document.fonts.load('400 32px "Inter Tight"'),
-                document.fonts.load('500 28px "JetBrains Mono"')
-            ]);
-        }
+  let curY = L.eyebrowY * s;
 
-        function playPreviewAnimation() {
-            if (!currentData) return;
-            slides = currentData.slides; theme = currentData.theme; brand = currentData.brand;
-            slideCounter.style.display = 'block';
-            function animateSlide(index) {
-                if (index >= slides.length) { slideCounter.style.display = 'none'; return; }
-                renderSlide(previewCanvas, slides[index], theme, brand);
-                slideCounter.textContent = `${index + 1} / ${slides.length}`;
-                setTimeout(() => { animateSlide(index + 1); }, 3000);
-            }
-            animateSlide(0);
-        }
+  if (slide.eyebrow) {
+    ctx.fillStyle = T.eyebrow;
+    ctx.font = `500 ${28 * s}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText(slide.eyebrow.toUpperCase(), px, curY);
+  }
+  curY = L.titleStartY * s;
 
-        jsonInput.addEventListener('input', () => {
-            clearError(); clearStatus();
-            if (!jsonInput.value.trim()) { previewBtn.disabled = true; exportBtn.disabled = true; return; }
-            try { currentData = parseJSON(jsonInput.value); previewBtn.disabled = false; exportBtn.disabled = false; }
-            catch (e) { showError(e.message); previewBtn.disabled = true; exportBtn.disabled = true; }
-        });
+  if (slide.title) {
+    ctx.fillStyle = T.text;
+    ctx.font = `800 ${96 * s}px "Fraunces", Georgia, serif`;
+    const lines = slide.title.split('\n');
+    lines.forEach(line => {
+      // Typewriter: slice chars
+      const shown = charReveal < 1
+        ? line.slice(0, Math.ceil(line.length * charReveal * lines.length))
+        : line;
+      ctx.fillText(shown, px, curY, L.maxWidth * s);
+      curY += L.titleLineH * s;
+    });
+  }
 
-        previewBtn.addEventListener('click', async () => {
-            clearStatus(); if (!currentData) return;
-            showStatus('Validating asset configurations...', 'info');
-            try {
-                await ensureFontsLoaded();
-                playPreviewAnimation();
-                showStatus('Preview playing', 'success');
-            } catch (e) { showError('Font rendering configuration failed: ' + e.message); }
-        });
+  if (slide.subtitle) {
+    curY += L.subtitleGap * s * 0.3;
+    ctx.globalAlpha = alpha * 0.75;
+    ctx.fillStyle = T.text;
+    ctx.font = `400 ${36 * s}px "Inter Tight", sans-serif`;
+    ctx.fillText(slide.subtitle, px, curY, L.maxWidth * s);
+    ctx.globalAlpha = alpha;
+    curY += L.subtitleGap * s;
+  }
 
-        // ============================================
-        // MP4 ENCODING VIA WASM CORE
-        // ============================================
-        async function captureFrames() {
-            const frames = [];
-            for (let i = 0; i < slides.length; i++) {
-                renderSlide(hiddenCanvas, slides[i], theme, brand);
-                const blob = await new Promise(resolve => hiddenCanvas.toBlob(resolve, 'image/png'));
-                const arrayBuffer = await blob.arrayBuffer();
-                frames.push(new Uint8Array(arrayBuffer));
-            }
-            return frames;
-        }
+  if (slide.body) {
+    curY += L.bodyGap * s * 0.3;
+    ctx.globalAlpha = alpha * 0.65;
+    ctx.fillStyle = T.text;
+    ctx.font = `400 ${32 * s}px "Inter Tight", sans-serif`;
+    slide.body.split('\n').forEach(line => {
+      ctx.fillText(line, px, curY, L.maxWidth * s);
+      curY += L.bodyLineH * s;
+    });
+    ctx.globalAlpha = alpha;
+  }
 
-        async function encodeMP4(frames) {
-            try {
-                await ffmpegPromise;
-                addDebugLog('Creating modern FFmpeg core object...');
-                
-                const ffmpeg = new window.FFmpeg.FFmpeg();
-                
-                ffmpeg.on('progress', ({ progress }) => { updateProgress(Math.round(progress * 100)); });
-                addDebugLog('Loading modules from worker process...');
-                
-                await ffmpeg.load({
-                    coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
-                    wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm'
-                });
-                addDebugLog('FFmpeg core modules fully isolated', 'success');
+  if (slide.cta) {
+    ctx.fillStyle = T.cta;
+    ctx.font = `700 ${26 * s}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText(slide.cta.toUpperCase(), px, L.ctaY * s);
+  }
 
-                for (let i = 0; i < frames.length; i++) {
-                    const filename = `frame${String(i).padStart(3, '0')}.png`;
-                    await ffmpeg.writeFile(filename, frames[i]);
-                    updateProgress((i / frames.length) * 15);
-                }
-                addDebugLog(`Staged ${frames.length} image buffers inside virtual scope`);
+  const brand = currentData?.brand || '';
+  if (brand) {
+    ctx.fillStyle = T.brand;
+    ctx.font = `400 ${22 * s}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'left';
+    const bx = L.brandX * s, by = L.brandStartY * s;
+    ctx.translate(bx, by);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(brand.toUpperCase(), 0, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.translate(-bx, -by);
+  }
 
-                const concatLines = frames.map((_, i) => `file 'frame${String(i).padStart(3, '0')}.png'\nduration 3`).join('\n');
-                await ffmpeg.writeFile('concat.txt', new TextEncoder().encode(concatLines));
-                
-                addDebugLog('Executing target transcode routine...');
-                updateProgress(20);
+  ctx.restore();
+}
 
-                await ffmpeg.exec([
-                    '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
-                    '-vf', 'scale=1080:1350,fps=25',
-                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-preset', 'fast',
-                    'output.mp4'
-                ]);
-                
-                addDebugLog('Binary container built successfully', 'success');
-                updateProgress(90);
+// ═══════════════════════════════════════════════════════
+// MP4 EXPORT — capture frames at 1080×1350 then encode
+// Strategy: render each animation frame to encodeCanvas,
+// capture PNG per frame, then FFmpeg concat → MP4
+// ═══════════════════════════════════════════════════════
+const FPS         = 25;
+const ANIM_FRAMES = Math.round((ANIM_IN_MS / 1000) * FPS);  // frames for anim-in
 
-                const data = await ffmpeg.readFile('output.mp4');
+async function captureAllFrames() {
+  const slides   = currentData.slides;
+  const themeKey = activeTheme || currentData.theme;
+  const holdFrames = Math.round(slideDuration * FPS);
+  const outFrames  = Math.round((ANIM_OUT_MS / 1000) * FPS);
+  const preset     = PRESETS[activePreset] || PRESETS.slam;
+  const allFrames  = [];
 
-                await ffmpeg.deleteFile('output.mp4');
-                for (let i = 0; i < frames.length; i++) {
-                    await ffmpeg.deleteFile(`frame${String(i).padStart(3, '0')}.png`);
-                }
-                await ffmpeg.deleteFile('concat.txt');
-                
-                updateProgress(100);
-                return new Uint8Array(data);
-            } catch (e) {
-                addDebugLog(`Execution fault inside transcode engine: ${e.message}`, 'error');
-                throw new Error('Encoding layout failed: ' + (e.message || String(e)));
-            }
-        }
+  for (let si = 0; si < slides.length; si++) {
+    const slide = slides[si];
+    log(`Capturing slide ${si + 1}/${slides.length}...`);
+    showProgress(`Capturing slide ${si + 1} / ${slides.length}`, (si / slides.length) * 15);
 
-        function downloadMP4(uint8array, filename) {
-            const blob = new Blob([uint8array], { type: 'video/mp4' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = filename || 'carousel-reel.mp4'; a.click();
-            URL.revokeObjectURL(url);
-        }
+    // Anim-in frames
+    for (let f = 0; f < ANIM_FRAMES; f++) {
+      const t = f / (ANIM_FRAMES - 1);
+      const params = preset(t);
+      drawAnimatedSlide(encodeCanvas, eCtx, slide, themeKey, params);
+      const blob = await canvasToBlob(encodeCanvas);
+      allFrames.push(new Uint8Array(await blob.arrayBuffer()));
+    }
 
-        exportBtn.addEventListener('click', async () => {
-            if (!currentData) return;
-            slides = currentData.slides; theme = currentData.theme; brand = currentData.brand;
-            clearStatus(); exportBtn.disabled = true; previewBtn.disabled = true;
-            showProgressBar(); showStatus('Initializing target systems...', 'info');
-            try {
-                await ensureFontsLoaded();
-                showStatus('Capturing frames...', 'info');
-                const frames = await captureFrames();
-                showStatus('Encoding video layout (this may take a minute)...', 'info');
-                const mp4Data = await encodeMP4(frames);
-                hideProgressBar(); showStatus('✓ Transcode complete! Finalizing bundle...', 'success');
-                downloadMP4(mp4Data, 'carousel-reel.mp4');
-                setTimeout(() => { clearStatus(); exportBtn.disabled = false; previewBtn.disabled = false; }, 2000);
-            } catch (e) {
-                hideProgressBar(); showStatus(`Export failure: ${e.message}`, 'error');
-                exportBtn.disabled = false; previewBtn.disabled = false;
-            }
-        });
+    // Hold frames — static, just repeat one frame
+    drawStaticSlide(encodeCanvas, eCtx, slide, themeKey);
+    const holdBlob = await canvasToBlob(encodeCanvas);
+    const holdData = new Uint8Array(await holdBlob.arrayBuffer());
+    for (let f = 0; f < holdFrames; f++) allFrames.push(holdData);
 
-        checkBrowserCompatibility();
-    </script>
+    // Anim-out frames (all except last slide)
+    if (si < slides.length - 1) {
+      for (let f = 0; f < outFrames; f++) {
+        const t = f / (outFrames - 1);
+        const a = 1 - easeInOutQuad(t);
+        eCtx.save();
+        drawStaticSlide(encodeCanvas, eCtx, slide, themeKey);
+        eCtx.globalCompositeOperation = 'destination-out';
+        eCtx.fillStyle = `rgba(0,0,0,${1 - a})`;
+        eCtx.fillRect(0, 0, encodeCanvas.width, encodeCanvas.height);
+        eCtx.globalCompositeOperation = 'source-over';
+        eCtx.restore();
+        const blob = await canvasToBlob(encodeCanvas);
+        allFrames.push(new Uint8Array(await blob.arrayBuffer()));
+      }
+    }
+  }
+
+  log(`Total frames captured: ${allFrames.length}`, 'ok');
+  return allFrames;
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((res, rej) => {
+    canvas.toBlob(b => b ? res(b) : rej(new Error('Canvas toBlob returned null')), 'image/png');
+  });
+}
+
+async function encodeToMP4(frames) {
+  if (!ffmpegInst || !ffmpegReady) throw new Error('FFmpeg not ready');
+
+  log(`Writing ${frames.length} frames to FFmpeg virtual FS...`);
+
+  // Write frames
+  for (let i = 0; i < frames.length; i++) {
+    const name = `f${String(i).padStart(5, '0')}.png`;
+    ffmpegInst.FS('writeFile', name, frames[i]);
+    if (i % 20 === 0) {
+      showProgress(`Writing frame ${i}/${frames.length}`, 15 + (i / frames.length) * 20);
+    }
+  }
+
+  // Build concat list — every frame for 1/FPS seconds
+  // Using image2 demuxer with -framerate is cleaner for fixed-rate
+  log('Building concat manifest...');
+  // Write a simple filelist
+  // Format: "file 'f00000.png'" repeated, all same frame rate
+  // We use -framerate + image2pipe approach via numbered frames
+  const concatLines = frames.map((_, i) => `file 'f${String(i).padStart(5, '0')}.png'`).join('\n');
+  ffmpegInst.FS('writeFile', 'frames.txt', new TextEncoder().encode(concatLines));
+
+  log(`Running FFmpeg encode at ${FPS}fps...`);
+  showProgress('Encoding MP4…', 35);
+
+  await ffmpegInst.run(
+    '-r', String(FPS),           // input framerate
+    '-f', 'concat',
+    '-safe', '0',
+    '-i', 'frames.txt',
+    '-vf', `scale=1080:1350`,
+    '-c:v', 'libx264',
+    '-pix_fmt', 'yuv420p',      // Instagram requires this
+    '-crf', '20',               // quality: lower = better
+    '-preset', 'fast',
+    '-movflags', '+faststart',  // streaming-friendly
+    'output.mp4'
+  );
+
+  log('Reading output file...');
+  showProgress('Finalising…', 95);
+  const data = ffmpegInst.FS('readFile', 'output.mp4');
+
+  // Clean up FS
+  try {
+    ffmpegInst.FS('unlink', 'output.mp4');
+    ffmpegInst.FS('unlink', 'frames.txt');
+    frames.forEach((_, i) => {
+      try { ffmpegInst.FS('unlink', `f${String(i).padStart(5, '0')}.png`); } catch(_) {}
+    });
+  } catch (e) { log('FS cleanup warning: ' + e.message, 'warn'); }
+
+  log(`MP4 encoded: ${(data.byteLength / 1024 / 1024).toFixed(2)} MB`, 'ok');
+  return new Uint8Array(data.buffer);
+}
+
+function triggerDownload(uint8, filename) {
+  const blob = new Blob([uint8], { type: 'video/mp4' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ═══════════════════════════════════════════════════════
+// BUTTON HANDLERS
+// ═══════════════════════════════════════════════════════
+previewBtn.addEventListener('click', async () => {
+  if (!currentData) return;
+  try {
+    await waitForFonts();
+    runPreview();  // intentionally not awaited — runs async
+  } catch (e) {
+    log('Preview error: ' + e.message, 'err');
+    showStatus('Preview failed: ' + e.message, 'error');
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  stopPreview();
+  log('Preview stopped by user');
+});
+
+exportBtn.addEventListener('click', async () => {
+  if (!currentData || !ffmpegReady) return;
+  stopPreview();
+  setButtons('encoding');
+  showProgressBar();
+  clearStatus();
+  log('Export started');
+
+  try {
+    await waitForFonts();
+    showProgress('Capturing frames…', 0);
+    const frames = await captureAllFrames();
+    showProgress('Encoding MP4…', 35);
+    const mp4 = await encodeToMP4(frames);
+    hideProgress();
+    showStatus(`✓ Exported ${(mp4.byteLength / 1024 / 1024).toFixed(1)} MB — downloading now`, 'success');
+    const slug = (currentData.brand || 'reel').toLowerCase().replace(/\s+/g, '-');
+    triggerDownload(mp4, `${slug}-kinetic.mp4`);
+    log('Export complete ✓', 'ok');
+  } catch (e) {
+    log('Export failed: ' + e.message, 'err');
+    showStatus('Export failed: ' + e.message, 'error');
+    hideProgress();
+  } finally {
+    setButtons('idle');
+  }
+});
+
+// helpers called inside export flow
+function showProgressBar() { progressWrap.classList.add('show'); }
+function hideProgress()     { progressWrap.classList.remove('show'); progressFill.style.width = '0%'; }
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+(async function init() {
+  log('Kinetic Reel Maker initialising...');
+  setButtons('idle');  // everything disabled until JSON pasted
+
+  // Draw blank canvas
+  pCtx.fillStyle = '#f0ede8';
+  pCtx.fillRect(0, 0, 540, 675);
+  pCtx.fillStyle = '#bbb';
+  pCtx.font = '14px "JetBrains Mono", monospace';
+  pCtx.textAlign = 'center';
+  pCtx.fillText('Paste JSON → Preview', 270, 337);
+
+  // Load FFmpeg in background — don't block UI
+  initFFmpeg();
+})();
+</script>
 </body>
 </html>
