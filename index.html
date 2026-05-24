@@ -127,6 +127,22 @@ input[type=range]{flex:1;accent-color:var(--ink);}
 .dbg-con.open{display:block;}
 .lok{color:#5dbb6a;}.lerr{color:#f07070;}.lwarn{color:#f0c060;}.linfo{color:#8ec8f7;}
 #encodeCanvas{position:fixed;left:-9999px;top:0;width:1080px;height:1350px;}
+/* ── JSON panel ── */
+.json-strip{margin-bottom:16px;}
+.json-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--r);cursor:pointer;color:var(--muted);transition:all .15s;text-align:left;}
+.json-toggle:hover{color:var(--ink);border-color:var(--border);}
+.json-toggle .arrow{transition:transform .2s;font-size:10px;}
+.json-toggle.open{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent;color:var(--ink);}
+.json-toggle.open .arrow{transform:rotate(90deg);}
+.json-body{display:none;background:var(--panel);border:1px solid var(--panel-border);border-top:none;border-bottom-left-radius:var(--r);border-bottom-right-radius:var(--r);padding:12px 14px;}
+.json-body.open{display:block;}
+.json-row{display:flex;gap:8px;align-items:flex-start;}
+#jsonBox{flex:1;height:110px;padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.6;border:1.5px solid var(--border);border-radius:var(--r);background:#f9f9f9;color:var(--ink);resize:vertical;transition:border-color .15s;}
+#jsonBox:focus{outline:none;border-color:var(--ink);background:#fff;}
+#jsonBox.jerr{border-color:var(--red);background:#fff5f5;}
+.json-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
+.json-err{font-family:var(--mono);font-size:10px;color:var(--red);margin-top:5px;display:none;}
+.json-err.show{display:block;}
 </style>
 </head>
 <body>
@@ -136,6 +152,27 @@ input[type=range]{flex:1;accent-color:var(--ink);}
   <span class="tag">Chrome Desktop · 1080×1350 WebM · No FFmpeg</span>
 </header>
 <div class="banner" id="wb"></div>
+
+<!-- ── JSON PANEL ── -->
+<div class="json-strip">
+  <button class="json-toggle" id="jsonToggle">
+    <span class="arrow">▶</span>
+    <span>Import / Export JSON</span>
+    <span style="margin-left:auto;font-size:9px;font-weight:400;text-transform:none;letter-spacing:0;">Paste AI-generated JSON here, or copy current state</span>
+  </button>
+  <div class="json-body" id="jsonBody">
+    <div class="json-row">
+      <textarea id="jsonBox" spellcheck="false" placeholder='Paste carousel JSON here — e.g. {"theme":"cream","brand":"Career Roads","slides":[...]}'></textarea>
+      <div class="json-actions">
+        <button class="btn-xs" id="jsonApply">↓ Apply</button>
+        <button class="btn-xs" id="jsonCopy">⧉ Copy</button>
+        <button class="btn-xs" id="jsonSync">↺ Sync</button>
+      </div>
+    </div>
+    <div class="json-err" id="jsonErr"></div>
+  </div>
+</div>
+
 <div class="layout">
 
 <!-- ── COL 1: SLIDES ── -->
@@ -606,7 +643,123 @@ $('exportBtn').addEventListener('click',startExport);
 (async function(){
   log('Kinetic Reel Maker v3 ready','ok');
   setButtons('idle');await waitFonts();refreshAll();
+  syncJsonBox(); // populate JSON box with initial state
 })();
+
+// ── JSON PANEL ──
+// Converts current slides + globals into a JSON string and puts it in the box
+function slidesToJSON(){
+  const out={
+    theme:gTheme, brand:gBrand,
+    titleSize:gTitleSize, staggerMs:gStagger,
+    textAnim:gTextAnim, bodyAnim:gBodyAnim,
+    slides:slides.map(s=>{
+      const o={};
+      // only include non-empty / non-default fields to keep it clean
+      if(s.eyebrow) o.eyebrow=s.eyebrow;
+      o.title=s.title||'';
+      if(s.subtitle) o.subtitle=s.subtitle;
+      if(s.body)     o.body=s.body;
+      if(s.cta)      o.cta=s.cta;
+      if(s.anim)     o.anim=s.anim;
+      if(s.textAnim) o.textAnim=s.textAnim;
+      if(s.titleSize)o.titleSize=s.titleSize;
+      if(s.titleColor)o.titleColor=s.titleColor;
+      if(s.bg)       o.bg=s.bg;
+      // skip bgImage from JSON — base64 is huge, not useful to paste around
+      const n=s.nudge||{};
+      const hasNudge=Object.values(n).some(v=>v!==0);
+      if(hasNudge) o.nudge=n;
+      return o;
+    })
+  };
+  return JSON.stringify(out,null,2);
+}
+
+// Writes current state to the JSON box
+function syncJsonBox(){
+  if(!$('jsonBody').classList.contains('open')) return; // don't bother if collapsed
+  $('jsonBox').value=slidesToJSON();
+  $('jsonBox').classList.remove('jerr');
+  $('jsonErr').className='json-err';
+}
+
+// Parses JSON box and loads into UI state
+function applyJSON(raw){
+  try{
+    const d=JSON.parse(raw);
+    if(!Array.isArray(d.slides)||!d.slides.length) throw new Error('"slides" must be a non-empty array');
+    if(d.theme&&!THEMES[d.theme]) throw new Error(`"theme" must be: ${Object.keys(THEMES).join(', ')}`);
+    d.slides.forEach((s,i)=>{if(!s.title)throw new Error(`slide[${i}] missing "title"`);});
+
+    // Apply globals
+    if(d.theme)    { gTheme=d.theme; document.querySelectorAll('.tswatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===gTheme)); }
+    if(d.brand!=null)  { gBrand=d.brand; $('gBrand').value=gBrand; }
+    if(d.titleSize){ gTitleSize=d.titleSize; $('gSize').value=gTitleSize; $('gSizeV').textContent=gTitleSize+'px'; }
+    if(d.staggerMs){ gStagger=d.staggerMs; $('gStagger').value=gStagger; $('gStaggerV').textContent=gStagger+'ms'; }
+    if(d.textAnim) { gTextAnim=d.textAnim; document.querySelectorAll('#gTextAnimRow .pill').forEach(b=>b.classList.toggle('active',b.dataset.ta===gTextAnim)); }
+    if(d.bodyAnim) { gBodyAnim=d.bodyAnim; document.querySelectorAll('#gBodyAnimRow .pill').forEach(b=>b.classList.toggle('active',b.dataset.ba===gBodyAnim)); }
+
+    // Build slides
+    slides=d.slides.map(s=>newSlide({
+      eyebrow:   s.eyebrow||'',
+      title:     s.title||'',
+      subtitle:  s.subtitle||'',
+      body:      s.body||'',
+      cta:       s.cta||'',
+      anim:      s.anim||null,
+      textAnim:  s.textAnim||null,
+      titleSize: s.titleSize||null,
+      titleColor:s.titleColor||null,
+      bg:        s.bg||null,
+      bgImage:   s.bgImage||null,
+      bgOverlay: s.bgOverlay??0.42,
+      nudge:     s.nudge||{eyebrowX:0,eyebrowY:0,titleX:0,titleY:0,bodyX:0,bodyY:0,ctaX:0,ctaY:0},
+    }));
+
+    activeIdx=0;
+    $('jsonBox').classList.remove('jerr');
+    $('jsonErr').className='json-err';
+    refreshAll();
+    log(`JSON applied: ${slides.length} slides`,'ok');
+    return true;
+  } catch(e){
+    $('jsonBox').classList.add('jerr');
+    $('jsonErr').textContent=e.message;
+    $('jsonErr').className='json-err show';
+    log('JSON parse error: '+e.message,'err');
+    return false;
+  }
+}
+
+// Toggle open/close
+$('jsonToggle').addEventListener('click',()=>{
+  const open=$('jsonBody').classList.toggle('open');
+  $('jsonToggle').classList.toggle('open',open);
+  if(open) syncJsonBox(); // populate on open
+});
+
+// Apply button — parse box → UI
+$('jsonApply').addEventListener('click',()=>{ applyJSON($('jsonBox').value); });
+
+// Copy button — copy current JSON to clipboard
+$('jsonCopy').addEventListener('click',()=>{
+  syncJsonBox();
+  navigator.clipboard.writeText($('jsonBox').value).then(()=>{
+    const b=$('jsonCopy'); b.textContent='✓ Copied'; setTimeout(()=>{b.textContent='⧉ Copy';},1800);
+  }).catch(()=>showStatus('Copy failed — select text manually.','error'));
+});
+
+// Sync button — push current UI state into the box
+$('jsonSync').addEventListener('click',()=>{ syncJsonBox(); });
+
+// Also sync the box after every refreshAll so it stays current when open
+const _origRefreshAll=refreshAll;
+// patch refreshAll to also sync JSON box
+function refreshAll(){
+  renderSlideList();populateEditor();previewStatic(activeIdx);
+  if($('jsonBody').classList.contains('open')) syncJsonBox();
+}
 </script>
 </body>
 </html>
