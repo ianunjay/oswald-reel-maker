@@ -4,749 +4,906 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kinetic Reel Maker</title>
-
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,800&family=JetBrains+Mono:wght@400;700&family=Inter+Tight:wght@400;600;800&display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,800&family=JetBrains+Mono:wght@400;700&family=Inter+Tight:wght@400;600;800&display=swap" rel="stylesheet">
 <!--
-  NO FFmpeg. No SharedArrayBuffer. No service workers.
-  Export uses MediaRecorder + canvas.captureStream() — native Chrome API.
-  Output: .webm (VP9). Instagram, YouTube Shorts, TikTok all accept .webm.
+  Export: MediaRecorder + canvas.captureStream(). No FFmpeg. No SharedArrayBuffer.
+  Works on Chrome desktop, GitHub Pages, zero config.
+  Output: .webm (VP9). Instagram/TikTok/YouTube Shorts accept .webm.
 -->
 <style>
 :root {
-  --ink: #0e0e0e;
-  --paper: #f7f4ef;
-  --accent: #c0392b;
-  --muted: #888;
-  --border: #ddd;
-  --radius: 6px;
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'Inter Tight', sans-serif;
-  --serif: 'Fraunces', Georgia, serif;
+  --ink:#0e0e0e; --paper:#f7f4ef; --red:#c0392b; --muted:#888;
+  --border:#ddd; --r:6px; --mono:'JetBrains Mono',monospace;
+  --sans:'Inter Tight',sans-serif; --serif:'Fraunces',Georgia,serif;
 }
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:var(--sans); background:var(--paper); color:var(--ink); min-height:100vh; padding:32px 20px 60px; }
-.shell { max-width:960px; margin:0 auto; }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);padding:28px 20px 80px;}
+.shell{max-width:1020px;margin:0 auto;}
 
-.header { display:flex; align-items:baseline; gap:16px; margin-bottom:40px; border-bottom:2px solid var(--ink); padding-bottom:20px; }
-.header h1 { font-family:var(--serif); font-size:32px; font-weight:800; letter-spacing:-0.5px; }
-.header .tag { font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+.hdr{display:flex;align-items:baseline;gap:14px;margin-bottom:36px;border-bottom:2px solid var(--ink);padding-bottom:18px;}
+.hdr h1{font-family:var(--serif);font-size:30px;font-weight:800;letter-spacing:-.5px;}
+.hdr .tag{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
 
-.banner { display:none; background:#fff8e1; border:1px solid #f0c040; border-radius:var(--radius); padding:12px 16px; font-size:13px; color:#7a5c00; margin-bottom:24px; }
-.banner.show { display:block; }
+.banner{display:none;background:#fff8e1;border:1px solid #f0c040;border-radius:var(--r);padding:11px 15px;font-size:13px;color:#7a5c00;margin-bottom:20px;}
+.banner.show{display:block;}
 
-.grid { display:grid; grid-template-columns:1fr 420px; gap:32px; align-items:start; }
-@media(max-width:800px){ .grid{ grid-template-columns:1fr; } }
+.grid{display:grid;grid-template-columns:1fr 400px;gap:28px;align-items:start;}
+@media(max-width:820px){.grid{grid-template-columns:1fr;}}
 
-.panel-label { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:8px; }
+/* ── section labels ── */
+.lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;margin-top:18px;}
+.lbl:first-child{margin-top:0;}
 
-.json-wrap { margin-bottom:20px; }
-textarea { width:100%; height:220px; padding:14px; font-family:var(--mono); font-size:12px; line-height:1.6; border:1.5px solid var(--border); border-radius:var(--radius); resize:vertical; background:white; color:var(--ink); transition:border-color 0.15s; }
-textarea:focus { outline:none; border-color:var(--ink); }
-textarea.has-error { border-color:var(--accent); background:#fff5f5; }
-.field-error { display:none; font-size:12px; color:var(--accent); margin-top:6px; font-family:var(--mono); }
-.field-error.show { display:block; }
+/* ── textarea ── */
+textarea{width:100%;height:200px;padding:13px;font-family:var(--mono);font-size:11.5px;line-height:1.65;border:1.5px solid var(--border);border-radius:var(--r);resize:vertical;background:#fff;color:var(--ink);transition:border-color .15s;}
+textarea:focus{outline:none;border-color:var(--ink);}
+textarea.err{border-color:var(--red);background:#fff5f5;}
+.ferr{display:none;font-size:11px;color:var(--red);margin-top:5px;font-family:var(--mono);}
+.ferr.show{display:block;}
 
-.presets { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:20px; }
-.preset-btn { padding:10px 14px; font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; border:1.5px solid var(--border); border-radius:var(--radius); background:white; cursor:pointer; transition:all 0.15s; text-align:left; color:var(--ink); }
-.preset-btn:hover { border-color:var(--ink); }
-.preset-btn.active { border-color:var(--ink); background:var(--ink); color:white; }
-.preset-btn .pname { font-weight:700; display:block; margin-bottom:2px; }
-.preset-btn .pdesc { font-size:10px; opacity:0.6; }
+/* ── schema helper ── */
+.schema-hint{background:#f0ede8;border-radius:var(--r);padding:10px 13px;font-family:var(--mono);font-size:10.5px;line-height:1.7;color:#555;margin-bottom:4px;}
+.schema-hint summary{cursor:pointer;font-weight:700;color:var(--ink);}
 
-.themes { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
-.theme-swatch { width:36px; height:36px; border-radius:50%; border:2.5px solid transparent; cursor:pointer; transition:all 0.15s; }
-.theme-swatch.active { border-color:var(--ink); transform:scale(1.15); box-shadow:0 0 0 2px white, 0 0 0 4px var(--ink); }
+/* ── control rows ── */
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
 
-.slider-row { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
-.slider-row label { font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); white-space:nowrap; }
-input[type=range] { flex:1; accent-color:var(--ink); }
-.slider-val { font-family:var(--mono); font-size:12px; min-width:36px; text-align:right; }
+/* ── pill toggles (presets, textAnim, bodyAnim) ── */
+.pill{padding:7px 13px;font-family:var(--mono);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border:1.5px solid var(--border);border-radius:20px;background:#fff;cursor:pointer;transition:all .15s;color:var(--ink);white-space:nowrap;}
+.pill:hover{border-color:var(--ink);}
+.pill.active{border-color:var(--ink);background:var(--ink);color:#fff;}
 
-.actions { display:flex; gap:10px; margin-bottom:12px; }
-.btn { padding:12px 20px; font-family:var(--mono); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; border:none; border-radius:var(--radius); cursor:pointer; transition:all 0.15s; }
-.btn-primary { background:var(--ink); color:white; flex:1; }
-.btn-primary:hover:not(:disabled) { background:#333; }
-.btn-primary:disabled { background:#ccc; cursor:not-allowed; color:#999; }
-.btn-ghost { background:white; color:var(--ink); border:1.5px solid var(--border); }
-.btn-ghost:hover:not(:disabled) { border-color:var(--ink); }
-.btn-ghost:disabled { opacity:0.4; cursor:not-allowed; }
-.btn-record { background:#c0392b; color:white; flex:1; }
-.btn-record:hover:not(:disabled) { background:#a93226; }
-.btn-record:disabled { background:#ccc; cursor:not-allowed; color:#999; }
+/* ── theme swatches ── */
+.swatch{width:34px;height:34px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;transition:all .15s;flex-shrink:0;}
+.swatch.active{border-color:var(--ink);transform:scale(1.18);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ink);}
 
-.recording-status { display:none; background:#fdedec; border:1px solid #e74c3c; border-radius:var(--radius); padding:12px 16px; margin-bottom:12px; font-family:var(--mono); font-size:12px; color:#922b21; }
-.recording-status.show { display:flex; align-items:center; gap:10px; }
-.rec-dot { width:10px; height:10px; border-radius:50%; background:#e74c3c; animation:blink 1s infinite; flex-shrink:0; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+/* ── sliders ── */
+.srow{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.srow label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);white-space:nowrap;min-width:96px;}
+input[type=range]{flex:1;accent-color:var(--ink);}
+.sval{font-family:var(--mono);font-size:11px;min-width:38px;text-align:right;}
 
-.status { display:none; padding:10px 14px; border-radius:var(--radius); font-size:13px; margin-bottom:16px; }
-.status.show { display:block; }
-.status.info { background:#e8f0fe; color:#1a4090; border:1px solid #aac4f7; }
-.status.success { background:#e6f9f0; color:#145a32; border:1px solid #7dcea0; }
-.status.error { background:#fdeded; color:#7b1c1c; border:1px solid #f1a7a7; }
+/* ── buttons ── */
+.btns{display:flex;gap:8px;margin-bottom:10px;}
+.btn{padding:11px 18px;font-family:var(--mono);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border:none;border-radius:var(--r);cursor:pointer;transition:all .15s;}
+.btn-dark{background:var(--ink);color:#fff;flex:1;}
+.btn-dark:hover:not(:disabled){background:#333;}
+.btn-dark:disabled{background:#ccc;cursor:not-allowed;color:#999;}
+.btn-ghost{background:#fff;color:var(--ink);border:1.5px solid var(--border);}
+.btn-ghost:hover:not(:disabled){border-color:var(--ink);}
+.btn-ghost:disabled{opacity:.4;cursor:not-allowed;}
+.btn-rec{background:var(--red);color:#fff;flex:1;}
+.btn-rec:hover:not(:disabled){background:#a93226;}
+.btn-rec:disabled{background:#ccc;cursor:not-allowed;color:#999;}
 
-.debug-wrap { margin-top:16px; }
-.debug-toggle { font-family:var(--mono); font-size:11px; color:var(--muted); cursor:pointer; text-decoration:underline; background:none; border:none; padding:0; }
-.debug-console { display:none; margin-top:8px; background:#1a1a1a; color:#ccc; border-radius:var(--radius); padding:12px; font-family:var(--mono); font-size:11px; line-height:1.7; max-height:200px; overflow-y:auto; }
-.debug-console.open { display:block; }
-.log-ok { color:#5dbb6a; } .log-err { color:#f07070; } .log-warn { color:#f0c060; } .log-info { color:#8ec8f7; }
+/* ── recording indicator ── */
+.rec-bar{display:none;align-items:center;gap:9px;background:#fdedec;border:1px solid #e74c3c;border-radius:var(--r);padding:10px 14px;margin-bottom:10px;font-family:var(--mono);font-size:11px;color:#922b21;}
+.rec-bar.show{display:flex;}
+.rec-dot{width:9px;height:9px;border-radius:50%;background:#e74c3c;animation:blink 1s infinite;flex-shrink:0;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
-.preview-panel { position:sticky; top:24px; }
-.preview-frame { background:#e8e4dc; border-radius:12px; padding:16px; box-shadow:0 8px 32px rgba(0,0,0,0.12); }
-.preview-screen { width:100%; aspect-ratio:4/5; border-radius:8px; overflow:hidden; position:relative; background:#faf8f4; }
-#previewCanvas { width:100%; height:100%; display:block; border-radius:8px; }
-.preview-controls { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
-.slide-dots { display:flex; gap:4px; }
-.dot { width:6px; height:6px; border-radius:50%; background:#bbb; transition:background 0.2s; }
-.dot.active { background:var(--ink); }
-.slide-num { font-family:var(--mono); font-size:11px; color:var(--muted); }
+/* ── status ── */
+.status{display:none;padding:9px 13px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px;}
+.status.show{display:block;}
+.status.info{background:#e8f0fe;color:#1a4090;border:1px solid #aac4f7;}
+.status.ok{background:#e6f9f0;color:#145a32;border:1px solid #7dcea0;}
+.status.error{background:#fdeded;color:#7b1c1c;border:1px solid #f1a7a7;}
 
-/* Encode canvas: off-screen but NOT display:none — captureStream needs it in render tree */
-#encodeCanvas { position:fixed; left:-9999px; top:0; width:1080px; height:1350px; }
+/* ── debug ── */
+.dbg-wrap{margin-top:14px;}
+.dbg-tog{font-family:var(--mono);font-size:10.5px;color:var(--muted);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;}
+.dbg-con{display:none;margin-top:7px;background:#151515;color:#ccc;border-radius:var(--r);padding:11px;font-family:var(--mono);font-size:10.5px;line-height:1.75;max-height:180px;overflow-y:auto;}
+.dbg-con.open{display:block;}
+.lok{color:#5dbb6a;}.lerr{color:#f07070;}.lwarn{color:#f0c060;}.linfo{color:#8ec8f7;}
+
+/* ── preview panel ── */
+.prev-wrap{position:sticky;top:20px;}
+.prev-frame{background:#e0dcd4;border-radius:14px;padding:14px;box-shadow:0 8px 32px rgba(0,0,0,.14);}
+.prev-screen{width:100%;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#faf8f4;position:relative;}
+#previewCanvas{width:100%;height:100%;display:block;border-radius:8px;}
+.prev-controls{display:flex;align-items:center;justify-content:space-between;margin-top:10px;}
+.dots{display:flex;gap:4px;}
+.dot{width:5px;height:5px;border-radius:50%;background:#bbb;transition:background .2s;}
+.dot.active{background:var(--ink);}
+.snum{font-family:var(--mono);font-size:10.5px;color:var(--muted);}
+
+/* encode canvas — off-screen, NOT display:none (captureStream needs render tree) */
+#encodeCanvas{position:fixed;left:-9999px;top:0;width:1080px;height:1350px;}
 </style>
 </head>
 <body>
 <div class="shell">
 
-  <header class="header">
-    <h1>Kinetic Reel Maker</h1>
-    <span class="tag">Chrome on Desktop &bull; Exports 1080&times;1350 WebM</span>
-  </header>
+<header class="hdr">
+  <h1>Kinetic Reel Maker</h1>
+  <span class="tag">Chrome Desktop · 1080×1350 WebM · MediaRecorder</span>
+</header>
 
-  <div class="banner" id="warningBanner"></div>
+<div class="banner" id="warningBanner"></div>
 
-  <div class="grid">
-    <!-- LEFT -->
-    <div>
-      <div class="json-wrap">
-        <div class="panel-label">1 — Paste carousel JSON</div>
-        <textarea id="jsonInput" spellcheck="false" placeholder='{"theme":"cream","brand":"Career Roads","slides":[{"type":"hook","eyebrow":"real story","title":"₹18 LPA\nFRESHER\nNO MBA","subtitle":"No degree. Just 15 exams.","body":"The offer was real.\nThe person was 24.","cta":"swipe to find out"}]}'></textarea>
-        <div class="field-error" id="jsonError"></div>
-      </div>
+<div class="grid">
 
-      <div class="panel-label">2 — Animation preset</div>
-      <div class="presets" id="presetPicker">
-        <button class="preset-btn active" data-preset="slam">
-          <span class="pname">Slam</span><span class="pdesc">Words crash in hard</span>
-        </button>
-        <button class="preset-btn" data-preset="drift">
-          <span class="pname">Drift</span><span class="pdesc">Smooth upward float</span>
-        </button>
-        <button class="preset-btn" data-preset="typewriter">
-          <span class="pname">Typewriter</span><span class="pdesc">Characters reveal one by one</span>
-        </button>
-        <button class="preset-btn" data-preset="bounce">
-          <span class="pname">Bounce</span><span class="pdesc">Elastic spring entry</span>
-        </button>
-      </div>
+  <!-- ════ LEFT ════ -->
+  <div>
 
-      <div class="panel-label">3 — Theme</div>
-      <div class="themes" id="themePicker">
-        <div class="theme-swatch active" data-theme="cream"
-          title="Cream" style="background:linear-gradient(135deg,#faf8f4 50%,#b14e2f 50%)"></div>
-        <div class="theme-swatch" data-theme="dark-minimal"
-          title="Dark" style="background:linear-gradient(135deg,#0f0f0f 50%,#f5f5f5 50%)"></div>
-        <div class="theme-swatch" data-theme="dark-purple"
-          title="Purple" style="background:linear-gradient(135deg,#1a0a2e 50%,#9b6dff 50%)"></div>
-        <div class="theme-swatch" data-theme="dark-magenta"
-          title="Magenta" style="background:linear-gradient(135deg,#1a0a14 50%,#d44d8a 50%)"></div>
-      </div>
+    <!-- JSON -->
+    <div class="lbl">1 — Carousel JSON</div>
+    <details class="schema-hint">
+      <summary>JSON schema reference (click to expand)</summary>
+      <br>
+      <strong>Global fields:</strong><br>
+      <code>theme</code>: cream | dark-minimal | dark-purple | dark-magenta<br>
+      <code>brand</code>: text shown as vertical side label<br>
+      <code>titleSize</code>: font size in px at 1080w (default 94)<br>
+      <code>staggerMs</code>: ms delay between words/lines/chars (default 110)<br>
+      <code>textAnim</code>: words | lines | chars | none (title entry mode, default words)<br>
+      <code>bodyAnim</code>: fade | slide | none (subtitle/body/cta entry, default fade)<br>
+      <br>
+      <strong>Per-slide overrides (all optional):</strong><br>
+      <code>anim</code>: slam | drift | bounce | snap | rise | fade-stagger (overrides global preset)<br>
+      <code>textAnim</code>: words | lines | chars | none<br>
+      <code>titleSize</code>: number<br>
+      <code>titleColor</code>: hex color e.g. "#ff6600"<br>
+      <code>bg</code>: hex color override for background<br>
+      <code>bgImage</code>: URL or data:image/... base64<br>
+    </details>
+    <br>
+    <textarea id="jsonInput" spellcheck="false" placeholder='Paste your carousel JSON here…'></textarea>
+    <div class="ferr" id="jsonErr"></div>
 
-      <div class="slider-row">
-        <label>Slide duration</label>
-        <input type="range" id="durSlider" min="2" max="6" step="0.5" value="3">
-        <span class="slider-val" id="durVal">3s</span>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-primary" id="previewBtn" disabled>▶ Preview</button>
-        <button class="btn btn-ghost"   id="stopBtn"    disabled>■ Stop</button>
-      </div>
-      <div class="actions">
-        <button class="btn btn-record" id="exportBtn" disabled>⬤ Record Video</button>
-      </div>
-
-      <div class="recording-status" id="recStatus">
-        <div class="rec-dot"></div>
-        <span id="recLabel">Recording slide 1 / 7…</span>
-      </div>
-
-      <div class="status" id="statusMsg"></div>
-
-      <div class="debug-wrap">
-        <button class="debug-toggle" id="debugToggle">Show debug console</button>
-        <div class="debug-console" id="debugConsole"></div>
-      </div>
+    <!-- PRESET -->
+    <div class="lbl">2 — Entry preset (global default)</div>
+    <div class="row" id="presetRow">
+      <button class="pill active" data-p="slam">Slam</button>
+      <button class="pill" data-p="drift">Drift</button>
+      <button class="pill" data-p="bounce">Bounce</button>
+      <button class="pill" data-p="snap">Snap</button>
+      <button class="pill" data-p="rise">Rise</button>
+      <button class="pill" data-p="fade-stagger">Fade Stagger</button>
     </div>
 
-    <!-- RIGHT -->
-    <div class="preview-panel">
-      <div class="preview-frame">
-        <div class="preview-screen">
-          <canvas id="previewCanvas" width="540" height="675"></canvas>
-        </div>
-        <div class="preview-controls">
-          <div class="slide-dots" id="slideDots"></div>
-          <div class="slide-num"  id="slideNum">— / —</div>
-        </div>
+    <!-- TEXT ANIM MODE -->
+    <div class="lbl">3 — Title animation mode</div>
+    <div class="row" id="textAnimRow">
+      <button class="pill active" data-ta="words">Words</button>
+      <button class="pill" data-ta="lines">Lines</button>
+      <button class="pill" data-ta="chars">Chars</button>
+      <button class="pill" data-ta="none">Block</button>
+    </div>
+
+    <!-- BODY ANIM MODE -->
+    <div class="lbl">4 — Subtitle / body entry</div>
+    <div class="row" id="bodyAnimRow">
+      <button class="pill active" data-ba="fade">Fade</button>
+      <button class="pill" data-ba="slide">Slide up</button>
+      <button class="pill" data-ba="none">Instant</button>
+    </div>
+
+    <!-- THEME -->
+    <div class="lbl">5 — Theme</div>
+    <div class="row" id="themeRow">
+      <div class="swatch active" data-theme="cream"        style="background:linear-gradient(135deg,#faf8f4 50%,#b14e2f 50%)" title="Cream"></div>
+      <div class="swatch"        data-theme="dark-minimal" style="background:linear-gradient(135deg,#0f0f0f 50%,#f5f5f5 50%)" title="Dark"></div>
+      <div class="swatch"        data-theme="dark-purple"  style="background:linear-gradient(135deg,#1a0a2e 50%,#9b6dff 50%)" title="Purple"></div>
+      <div class="swatch"        data-theme="dark-magenta" style="background:linear-gradient(135deg,#1a0a14 50%,#d44d8a 50%)" title="Magenta"></div>
+    </div>
+
+    <!-- SLIDERS -->
+    <div class="lbl">6 — Timing</div>
+    <div class="srow">
+      <label>Slide hold</label>
+      <input type="range" id="durSlider" min="1.5" max="7" step=".5" value="3">
+      <span class="sval" id="durVal">3s</span>
+    </div>
+    <div class="srow">
+      <label>Stagger delay</label>
+      <input type="range" id="staggerSlider" min="40" max="300" step="10" value="110">
+      <span class="sval" id="staggerVal">110ms</span>
+    </div>
+    <div class="srow">
+      <label>Title size</label>
+      <input type="range" id="sizeSlider" min="48" max="130" step="2" value="94">
+      <span class="sval" id="sizeVal">94px</span>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="lbl" style="margin-top:20px;">7 — Actions</div>
+    <div class="btns">
+      <button class="btn btn-dark" id="previewBtn" disabled>▶ Preview</button>
+      <button class="btn btn-ghost" id="stopBtn" disabled>■ Stop</button>
+    </div>
+    <div class="btns">
+      <button class="btn btn-rec" id="exportBtn" disabled>⬤ Record Video</button>
+    </div>
+
+    <div class="rec-bar" id="recBar">
+      <div class="rec-dot"></div>
+      <span id="recLabel">Recording slide 1 / 7…</span>
+    </div>
+    <div class="status" id="statusMsg"></div>
+
+    <!-- DEBUG -->
+    <div class="dbg-wrap">
+      <button class="dbg-tog" id="dbgToggle">Show debug console</button>
+      <div class="dbg-con" id="dbgCon"></div>
+    </div>
+
+  </div>
+
+  <!-- ════ RIGHT — PREVIEW ════ -->
+  <div class="prev-wrap">
+    <div class="prev-frame">
+      <div class="prev-screen">
+        <canvas id="previewCanvas" width="540" height="675"></canvas>
+      </div>
+      <div class="prev-controls">
+        <div class="dots" id="dotRow"></div>
+        <div class="snum" id="slideNum">— / —</div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- Off-screen full-res canvas for recording — NOT display:none -->
+</div><!-- /grid -->
+</div><!-- /shell -->
+
 <canvas id="encodeCanvas" width="1080" height="1350"></canvas>
 
 <script>
 'use strict';
 
-// ── THEMES ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// THEMES
+// ══════════════════════════════════════════════════════════════
 const THEMES = {
-  'cream':        { bg:'#faf8f4', text:'#1a1a1a', eyebrow:'#b14e2f', accent:'#b14e2f', brand:'#ccbfa8', cta:'#b14e2f' },
-  'dark-minimal': { bg:'#0f0f0f', text:'#f5f5f5', eyebrow:'#777',    accent:'#f5f5f5', brand:'#333',    cta:'#f5f5f5' },
-  'dark-purple':  { bg:'#1a0a2e', text:'#f0eaff', eyebrow:'#9b6dff', accent:'#9b6dff', brand:'#3d2060', cta:'#9b6dff' },
-  'dark-magenta': { bg:'#1a0a14', text:'#ffe0f0', eyebrow:'#d44d8a', accent:'#d44d8a', brand:'#4a1530', cta:'#d44d8a' }
+  'cream':        {bg:'#faf8f4',text:'#1a1a1a',eyebrow:'#b14e2f',accent:'#b14e2f',brand:'#d0c4ae',cta:'#b14e2f'},
+  'dark-minimal': {bg:'#0f0f0f',text:'#f0f0f0',eyebrow:'#777',   accent:'#f0f0f0',brand:'#2e2e2e',cta:'#f0f0f0'},
+  'dark-purple':  {bg:'#1a0a2e',text:'#f0eaff',eyebrow:'#9b6dff',accent:'#9b6dff',brand:'#3d2060',cta:'#9b6dff'},
+  'dark-magenta': {bg:'#1a0a14',text:'#ffe0f0',eyebrow:'#d44d8a',accent:'#d44d8a',brand:'#4a1530',cta:'#d44d8a'},
 };
 
-// ── LAYOUT (at 1080×1350) ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// LAYOUT (at 1080w)
+// ══════════════════════════════════════════════════════════════
 const L = {
-  px:80, eyebrowY:170, titleStartY:270, titleLineH:118,
-  subtitleGap:70, bodyGap:50, bodyLineH:52,
-  ctaY:1240, brandX:1030, brandStartY:180, maxW:900
+  px:84, eyebrowY:168, titleStartY:270, titleLineH:118,
+  subtitleGap:68, bodyGap:48, bodyLineH:52,
+  ctaY:1238, brandX:1028, brandStartY:175, maxW:900
 };
 
-// ── EASING ───────────────────────────────────────────────────────
-const ease = {
-  outExpo:  t => t===1 ? 1 : 1-Math.pow(2,-10*t),
+// ══════════════════════════════════════════════════════════════
+// EASING
+// ══════════════════════════════════════════════════════════════
+const E = {
+  outExpo:  t => t===1?1:1-Math.pow(2,-10*t),
   outBounce:t => {
     const n=7.5625,d=2.75;
     if(t<1/d) return n*t*t;
-    if(t<2/d) return n*(t-=1.5/d)*t+0.75;
-    if(t<2.5/d) return n*(t-=2.25/d)*t+0.9375;
-    return n*(t-=2.625/d)*t+0.984375;
+    if(t<2/d) return n*(t-=1.5/d)*t+.75;
+    if(t<2.5/d) return n*(t-=2.25/d)*t+.9375;
+    return n*(t-=2.625/d)*t+.984375;
   },
-  inOutQuad:t => t<0.5 ? 2*t*t : -1+(4-2*t)*t
+  outBack:  t => { const c=1.70158; return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2); },
+  inOutQuad:t => t<.5?2*t*t:-1+(4-2*t)*t,
+  linear:   t => t,
+  outQuart: t => 1-Math.pow(1-t,4),
 };
 
-// ── PRESETS ──────────────────────────────────────────────────────
-// Each returns { offsetY, scale, alpha, charReveal } for t in [0,1]
+// ══════════════════════════════════════════════════════════════
+// ENTRY PRESETS
+// Returns {offsetY, offsetX, scale, alpha, blur} for t in [0,1]
+// Used for per-element entry animation
+// ══════════════════════════════════════════════════════════════
 const PRESETS = {
-  slam:       t => ({ offsetY:(1-ease.outExpo(t))*60,   scale:0.7+0.3*ease.outExpo(t),   alpha:Math.min(1,t*3),      charReveal:1 }),
-  drift:      t => ({ offsetY:(1-ease.outExpo(t))*40,   scale:1,                          alpha:ease.outExpo(t),       charReveal:1 }),
-  typewriter: t => ({ offsetY:0,                         scale:1,                          alpha:1,                     charReveal:t }),
-  bounce:     t => ({ offsetY:(1-ease.outBounce(t))*50, scale:1,                          alpha:Math.min(1,t*2),       charReveal:1 })
+  'slam':         t => ({offsetY:(1-E.outExpo(t))*55,  offsetX:0, scale:.72+.28*E.outExpo(t),  alpha:Math.min(1,t*3.5), blur:0}),
+  'drift':        t => ({offsetY:(1-E.outExpo(t))*42,  offsetX:0, scale:1,                       alpha:E.outExpo(t),       blur:0}),
+  'bounce':       t => ({offsetY:(1-E.outBounce(t))*48,offsetX:0, scale:1,                       alpha:Math.min(1,t*2.5), blur:0}),
+  'snap':         t => ({offsetY:0,                     offsetX:0, scale:1,                       alpha:t>.1?1:0,          blur:Math.max(0,(1-t*6)*14)}),
+  'rise':         t => ({offsetY:(1-E.outQuart(t))*65, offsetX:0, scale:1,                       alpha:E.outQuart(t),     blur:0}),
+  'fade-stagger': t => ({offsetY:0,                     offsetX:0, scale:1,                       alpha:E.outQuart(t),     blur:0}),
 };
 
-// ── STATE ────────────────────────────────────────────────────────
+const ELEM_ANIM_DUR = 420; // ms for a single element's entry animation
+const ANIM_OUT_DUR  = 320; // ms for slide exit fade
+
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
 let currentData  = null;
-let activePreset = 'slam';
-let activeTheme  = 'cream';
-let slideDur     = 3;
+let gPreset      = 'slam';
+let gTextAnim    = 'words';
+let gBodyAnim    = 'fade';
+let gTheme       = 'cream';
+let gDur         = 3;
+let gStagger     = 110;
+let gTitleSize   = 94;
 let animRAF      = null;
 let animRunning  = false;
 let isRecording  = false;
 
-// ── DOM ──────────────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-const previewCanvas = $('previewCanvas');
-const encodeCanvas  = $('encodeCanvas');
-const pCtx = previewCanvas.getContext('2d');
-const eCtx = encodeCanvas.getContext('2d');
+// Cached bgImage elements per slide index
+const bgCache = {};
 
-// ── DEBUG LOGGER ─────────────────────────────────────────────────
-const debugEl = $('debugConsole');
-let debugOpen = false;
-$('debugToggle').addEventListener('click', () => {
-  debugOpen = !debugOpen;
-  debugEl.classList.toggle('open', debugOpen);
-  $('debugToggle').textContent = debugOpen ? 'Hide debug console' : 'Show debug console';
+// ══════════════════════════════════════════════════════════════
+// DOM
+// ══════════════════════════════════════════════════════════════
+const $   = id => document.getElementById(id);
+const pCv = $('previewCanvas');
+const eCv = $('encodeCanvas');
+const pC  = pCv.getContext('2d');
+const eC  = eCv.getContext('2d');
+
+// ══════════════════════════════════════════════════════════════
+// LOGGER
+// ══════════════════════════════════════════════════════════════
+let dbgOpen = false;
+$('dbgToggle').addEventListener('click', () => {
+  dbgOpen = !dbgOpen;
+  $('dbgCon').classList.toggle('open', dbgOpen);
+  $('dbgToggle').textContent = dbgOpen ? 'Hide debug console' : 'Show debug console';
 });
-function log(msg, type='info') {
-  const t = new Date().toLocaleTimeString('en-IN',{hour12:false});
-  const d = document.createElement('div');
-  d.className = 'log-'+type;
-  d.textContent = `[${t}] ${msg}`;
-  debugEl.appendChild(d);
-  debugEl.scrollTop = debugEl.scrollHeight;
-  console.log(`[kinetic:${type}]`, msg);
+function log(msg, t='info') {
+  const ts = new Date().toLocaleTimeString('en-IN',{hour12:false});
+  const d  = document.createElement('div');
+  d.className = {info:'linfo',ok:'lok',warn:'lwarn',err:'lerr'}[t]||'linfo';
+  d.textContent = `[${ts}] ${msg}`;
+  $('dbgCon').appendChild(d);
+  $('dbgCon').scrollTop = 9999;
+  console[t==='err'?'error':t==='warn'?'warn':'log']('[kinetic]', msg);
 }
 
-// ── UI HELPERS ───────────────────────────────────────────────────
-function showStatus(msg, type='info') {
-  const el = $('statusMsg');
-  el.textContent = msg;
-  el.className = `status show ${type}`;
+// ══════════════════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════════════════
+function showStatus(msg, t='info') {
+  const el=$('statusMsg'); el.textContent=msg;
+  el.className=`status show ${t==='ok'?'ok':t==='error'?'error':'info'}`;
 }
-function clearStatus() { $('statusMsg').className = 'status'; }
+function clearStatus(){ $('statusMsg').className='status'; }
 
 function setButtons(state) {
-  const has = !!currentData;
-  if (state === 'idle') {
-    $('previewBtn').disabled = !has;
-    $('exportBtn').disabled  = !has;
-    $('stopBtn').disabled    = true;
-  } else if (state === 'previewing') {
-    $('previewBtn').disabled = true;
-    $('exportBtn').disabled  = true;
-    $('stopBtn').disabled    = false;
-  } else if (state === 'recording') {
-    $('previewBtn').disabled = true;
-    $('exportBtn').disabled  = true;
-    $('stopBtn').disabled    = true;
-  }
+  const has=!!currentData;
+  if(state==='idle')       { $('previewBtn').disabled=!has; $('exportBtn').disabled=!has; $('stopBtn').disabled=true; }
+  else if(state==='playing'){ $('previewBtn').disabled=true; $('exportBtn').disabled=true; $('stopBtn').disabled=false; }
+  else if(state==='rec')   { $('previewBtn').disabled=true; $('exportBtn').disabled=true; $('stopBtn').disabled=true; }
 }
 
 function buildDots(n) {
-  const el = $('slideDots');
-  el.innerHTML = '';
-  for (let i=0;i<n;i++) {
-    const d = document.createElement('div');
-    d.className='dot';
-    el.appendChild(d);
-  }
+  $('dotRow').innerHTML='';
+  for(let i=0;i<n;i++){const d=document.createElement('div');d.className='dot';$('dotRow').appendChild(d);}
 }
-function setDot(i, n) {
-  document.querySelectorAll('.dot').forEach((d,idx) => d.classList.toggle('active', idx===i));
-  $('slideNum').textContent = `${i+1} / ${n}`;
+function setDot(i,n) {
+  document.querySelectorAll('.dot').forEach((d,x)=>d.classList.toggle('active',x===i));
+  $('slideNum').textContent=`${i+1} / ${n}`;
 }
+function showRec(i,n){ $('recBar').classList.add('show'); $('recLabel').textContent=`Recording slide ${i+1} / ${n}…`; }
+function hideRec(){ $('recBar').classList.remove('show'); }
 
-function showRecording(slideIdx, total) {
-  $('recStatus').classList.add('show');
-  $('recLabel').textContent = `Recording slide ${slideIdx+1} / ${total}…`;
-}
-function hideRecording() { $('recStatus').classList.remove('show'); }
-
-// ── BROWSER CHECK ────────────────────────────────────────────────
-(function() {
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-  if (isSafari) {
-    $('warningBanner').textContent = '⚠️ Safari does not support canvas recording. Use Chrome or Firefox on desktop.';
-    $('warningBanner').classList.add('show');
-    log('Safari detected — export will not work', 'warn');
-  } else if (isMobile) {
-    $('warningBanner').textContent = '⚠️ Mobile may struggle with 1080p recording. Preview works fine.';
-    $('warningBanner').classList.add('show');
-    log('Mobile detected', 'warn');
-  }
-
-  if (!window.MediaRecorder) {
-    log('MediaRecorder API not found — export disabled', 'err');
-    showStatus('This browser does not support video recording. Please use Chrome.', 'error');
-  } else {
-    // Check VP9 support
-    const vp9 = MediaRecorder.isTypeSupported('video/webm;codecs=vp9');
-    const vp8 = MediaRecorder.isTypeSupported('video/webm;codecs=vp8');
-    const wb  = MediaRecorder.isTypeSupported('video/webm');
-    log(`MediaRecorder ready. VP9:${vp9} VP8:${vp8} WebM:${wb}`, 'ok');
+// ══════════════════════════════════════════════════════════════
+// BROWSER CHECKS
+// ══════════════════════════════════════════════════════════════
+(function(){
+  const safari=/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const mobile=/Mobi|Android/i.test(navigator.userAgent);
+  if(safari){ $('warningBanner').textContent='⚠️ Safari does not support canvas recording. Use Chrome desktop.'; $('warningBanner').classList.add('show'); log('Safari — export disabled','warn'); }
+  else if(mobile){ $('warningBanner').textContent='⚠️ Mobile may struggle with 1080p. Preview works fine.'; $('warningBanner').classList.add('show'); log('Mobile detected','warn'); }
+  if(!window.MediaRecorder){ log('MediaRecorder not found — export disabled','err'); showStatus('Browser does not support recording. Use Chrome.','error'); }
+  else {
+    const vp9=MediaRecorder.isTypeSupported('video/webm;codecs=vp9');
+    const vp8=MediaRecorder.isTypeSupported('video/webm;codecs=vp8');
+    log(`MediaRecorder ready. VP9:${vp9} VP8:${vp8}`,'ok');
   }
 })();
 
-// ── FONT LOADING ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// FONTS
+// ══════════════════════════════════════════════════════════════
 async function waitFonts() {
   await document.fonts.ready;
   await Promise.all([
     document.fonts.load('800 96px "Fraunces"'),
     document.fonts.load('400 32px "Inter Tight"'),
-    document.fonts.load('700 26px "JetBrains Mono"')
+    document.fonts.load('700 26px "JetBrains Mono"'),
   ]);
-  const ok = document.fonts.check('800 96px "Fraunces"');
-  log(`Fonts ready. Fraunces loaded: ${ok}`, ok ? 'ok' : 'warn');
+  log(`Fraunces loaded: ${document.fonts.check('800 96px "Fraunces"')}`,'ok');
 }
 
-// ── JSON VALIDATION ──────────────────────────────────────────────
-function parseSlides(raw) {
+// ══════════════════════════════════════════════════════════════
+// JSON PARSE + VALIDATE
+// ══════════════════════════════════════════════════════════════
+function parseJSON(raw) {
   const d = JSON.parse(raw);
-  if (!Array.isArray(d.slides) || !d.slides.length) throw new Error('"slides" must be a non-empty array');
-  if (!THEMES[d.theme]) throw new Error(`"theme" must be one of: ${Object.keys(THEMES).join(', ')}`);
-  d.slides.forEach((s,i) => { if (!s.title) throw new Error(`slide[${i}] missing "title"`); });
+  if(!Array.isArray(d.slides)||!d.slides.length) throw new Error('"slides" must be a non-empty array');
+  if(!THEMES[d.theme]) throw new Error(`"theme" must be: ${Object.keys(THEMES).join(', ')}`);
+  d.slides.forEach((s,i)=>{ if(!s.title) throw new Error(`slide[${i}] missing "title"`); });
   return d;
 }
 
 $('jsonInput').addEventListener('input', () => {
-  const errEl = $('jsonError');
-  errEl.className = 'field-error';
-  $('jsonInput').classList.remove('has-error');
-  const raw = $('jsonInput').value.trim();
-  if (!raw) { currentData=null; setButtons('idle'); return; }
+  $('jsonErr').className='ferr'; $('jsonInput').classList.remove('err');
+  const raw=$('jsonInput').value.trim();
+  if(!raw){ currentData=null; setButtons('idle'); return; }
   try {
-    currentData = parseSlides(raw);
-    setActiveTheme(currentData.theme);
+    currentData=parseJSON(raw);
+    // Sync global theme to JSON
+    if(THEMES[currentData.theme]) applyTheme(currentData.theme);
     buildDots(currentData.slides.length);
-    setDot(0, currentData.slides.length);
+    setDot(0,currentData.slides.length);
+    // Sync controls from JSON globals if present
+    if(currentData.staggerMs)  { gStagger=currentData.staggerMs; $('staggerSlider').value=gStagger; $('staggerVal').textContent=gStagger+'ms'; }
+    if(currentData.titleSize)  { gTitleSize=currentData.titleSize; $('sizeSlider').value=gTitleSize; $('sizeVal').textContent=gTitleSize+'px'; }
+    if(currentData.textAnim)   applyTextAnim(currentData.textAnim);
+    if(currentData.bodyAnim)   applyBodyAnim(currentData.bodyAnim);
     setButtons('idle');
-    log(`Parsed OK: ${currentData.slides.length} slides, theme=${currentData.theme}`, 'ok');
+    log(`Parsed OK: ${currentData.slides.length} slides, theme=${currentData.theme}`,'ok');
+    // Preload bgImages
+    currentData.slides.forEach((s,i)=>{ if(s.bgImage) preloadBg(i,s.bgImage); });
+    // Draw first slide static preview
+    renderStatic(pCv,pC,currentData.slides[0],resolveConfig(currentData.slides[0]));
   } catch(e) {
     currentData=null;
-    errEl.textContent = e.message;
-    errEl.className = 'field-error show';
-    $('jsonInput').classList.add('has-error');
+    $('jsonErr').textContent=e.message; $('jsonErr').className='ferr show';
+    $('jsonInput').classList.add('err');
     setButtons('idle');
   }
 });
 
-// ── PRESET PICKER ────────────────────────────────────────────────
-$('presetPicker').addEventListener('click', e => {
-  const b = e.target.closest('.preset-btn');
-  if (!b) return;
-  document.querySelectorAll('.preset-btn').forEach(x => x.classList.remove('active'));
-  b.classList.add('active');
-  activePreset = b.dataset.preset;
-  log(`Preset: ${activePreset}`);
-});
-
-// ── THEME PICKER ─────────────────────────────────────────────────
-function setActiveTheme(t) {
-  if (!THEMES[t]) return;
-  activeTheme = t;
-  document.querySelectorAll('.theme-swatch').forEach(s => s.classList.toggle('active', s.dataset.theme===t));
+// ══════════════════════════════════════════════════════════════
+// BGIMAGE PRELOAD
+// ══════════════════════════════════════════════════════════════
+function preloadBg(idx, src) {
+  const img = new Image();
+  img.crossOrigin='anonymous';
+  img.onload  = () => { bgCache[idx]=img; log(`bgImage[${idx}] loaded`,'ok'); };
+  img.onerror = () => log(`bgImage[${idx}] failed to load`,'warn');
+  img.src = src;
 }
-$('themePicker').addEventListener('click', e => {
-  const s = e.target.closest('.theme-swatch');
-  if (s) { setActiveTheme(s.dataset.theme); log(`Theme: ${activeTheme}`); }
+
+// ══════════════════════════════════════════════════════════════
+// CONTROL PICKERS
+// ══════════════════════════════════════════════════════════════
+$('presetRow').addEventListener('click', e => {
+  const b=e.target.closest('.pill'); if(!b) return;
+  document.querySelectorAll('#presetRow .pill').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); gPreset=b.dataset.p; log(`Preset: ${gPreset}`);
 });
 
-// ── DURATION ─────────────────────────────────────────────────────
-$('durSlider').addEventListener('input', () => {
-  slideDur = parseFloat($('durSlider').value);
-  $('durVal').textContent = slideDur + 's';
+function applyTextAnim(v) {
+  gTextAnim=v;
+  document.querySelectorAll('#textAnimRow .pill').forEach(x=>x.classList.toggle('active',x.dataset.ta===v));
+}
+$('textAnimRow').addEventListener('click', e => {
+  const b=e.target.closest('.pill'); if(!b) return; applyTextAnim(b.dataset.ta); log(`TextAnim: ${gTextAnim}`);
 });
 
-// ── CANVAS DRAWING ───────────────────────────────────────────────
-function sc(canvas) { return canvas.width / 1080; }  // scale factor
+function applyBodyAnim(v) {
+  gBodyAnim=v;
+  document.querySelectorAll('#bodyAnimRow .pill').forEach(x=>x.classList.toggle('active',x.dataset.ba===v));
+}
+$('bodyAnimRow').addEventListener('click', e => {
+  const b=e.target.closest('.pill'); if(!b) return; applyBodyAnim(b.dataset.ba); log(`BodyAnim: ${gBodyAnim}`);
+});
 
-function drawSlide(canvas, ctx, slide, themeKey, anim) {
-  // anim: { offsetY, scale, alpha, charReveal } — pass null for static
-  const s  = sc(canvas);
-  const T  = THEMES[themeKey];
-  const W  = canvas.width, H = canvas.height;
-  const px = L.px * s;
-  const { offsetY=0, scale=1, alpha=1, charReveal=1 } = anim || {};
+function applyTheme(t) {
+  gTheme=t;
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.theme===t));
+}
+$('themeRow').addEventListener('click', e => {
+  const s=e.target.closest('.swatch'); if(!s) return; applyTheme(s.dataset.theme); log(`Theme: ${gTheme}`);
+});
 
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = T.bg;
-  ctx.fillRect(0,0,W,H);
+$('durSlider').addEventListener('input', ()=>{ gDur=parseFloat($('durSlider').value); $('durVal').textContent=gDur+'s'; });
+$('staggerSlider').addEventListener('input', ()=>{ gStagger=parseInt($('staggerSlider').value); $('staggerVal').textContent=gStagger+'ms'; });
+$('sizeSlider').addEventListener('input', ()=>{ gTitleSize=parseInt($('sizeSlider').value); $('sizeVal').textContent=gTitleSize+'px'; });
 
-  // Left accent stripe
-  ctx.fillStyle = T.accent;
-  ctx.fillRect(0,0,6*s,H);
+// ══════════════════════════════════════════════════════════════
+// RESOLVE SLIDE CONFIG
+// Merges globals + per-slide overrides into one flat config object
+// ══════════════════════════════════════════════════════════════
+function resolveConfig(slide) {
+  return {
+    preset:     slide.anim      || gPreset,
+    textAnim:   slide.textAnim  || gTextAnim,
+    bodyAnim:   slide.bodyAnim  || gBodyAnim,
+    theme:      THEMES[slide.theme || gTheme],
+    titleSize:  slide.titleSize || gTitleSize,
+    titleColor: slide.titleColor|| null,
+    bgOverride: slide.bg        || null,
+    stagger:    gStagger,
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
+// TIMELINE BUILDER
+// Builds an ordered list of drawable elements with entry timings
+// Each entry: { startMs, text, x, y, font, color, preset, textAnim, blur }
+// Returns { entries[], totalAnimMs }
+// ══════════════════════════════════════════════════════════════
+function buildTimeline(canvas, slide, cfg) {
+  const s   = canvas.width / 1080;
+  const T   = cfg.theme;
+  const px  = L.px * s;
+  const entries = [];
+  let   cursor  = 0;  // ms — when next element starts
+  const STAGGER = cfg.stagger;
+  const EADUR   = ELEM_ANIM_DUR;
+
+  // ── helper: queue an entry ──
+  function queue(text, x, y, font, color, opts={}) {
+    entries.push({ startMs:cursor, dur:EADUR, text, x, y, font, color,
+      preset:cfg.preset, maxW:(L.maxW*s), ...opts });
+    cursor += STAGGER;
+  }
+
+  // 1. EYEBROW
+  if(slide.eyebrow) {
+    queue(slide.eyebrow.toUpperCase(), px, L.eyebrowY*s,
+      `500 ${28*s}px "JetBrains Mono",monospace`, T.eyebrow);
+    cursor += STAGGER * 0.5;
+  }
+
+  // 2. TITLE — split by textAnim mode
+  const titleColor = cfg.titleColor || T.text;
+  const titleFont  = (sz) => `800 ${sz*s}px "Fraunces",Georgia,serif`;
+  const lines      = (slide.title||'').split('\n');
+  let   titleY     = L.titleStartY * s;
+
+  if(cfg.textAnim === 'lines') {
+    lines.forEach(line => {
+      queue(line, px, titleY, titleFont(cfg.titleSize), titleColor);
+      titleY += L.titleLineH * s;
+    });
+  } else if(cfg.textAnim === 'words') {
+    lines.forEach(line => {
+      const words = line.split(' ');
+      // Measure word positions
+      const tempCtx = canvas.getContext('2d');
+      tempCtx.font = titleFont(cfg.titleSize);
+      let wx = px;
+      words.forEach(word => {
+        queue(word, wx, titleY, titleFont(cfg.titleSize), titleColor, {noMaxW:true});
+        wx += tempCtx.measureText(word+' ').width;
+      });
+      titleY += L.titleLineH * s;
+    });
+  } else if(cfg.textAnim === 'chars') {
+    // Chars: stagger each character individually
+    lines.forEach(line => {
+      const tempCtx = canvas.getContext('2d');
+      tempCtx.font  = titleFont(cfg.titleSize);
+      let cx = px;
+      for(let i=0;i<line.length;i++) {
+        const ch = line[i];
+        if(ch===' '){ cx+=tempCtx.measureText(' ').width; continue; }
+        queue(ch, cx, titleY, titleFont(cfg.titleSize), titleColor, {noMaxW:true});
+        cx += tempCtx.measureText(ch).width;
+      }
+      titleY += L.titleLineH * s;
+      cursor += STAGGER; // extra gap between lines
+    });
+  } else {
+    // 'none' — whole title as one block, lines stacked
+    lines.forEach(line => {
+      queue(line, px, titleY, titleFont(cfg.titleSize), titleColor);
+      titleY += L.titleLineH * s;
+    });
+  }
+
+  // Gap after title
+  cursor += STAGGER * 2;
+
+  // 3. SUBTITLE
+  if(slide.subtitle) {
+    const bodyPreset = cfg.bodyAnim==='none' ? 'snap' : cfg.bodyAnim==='slide' ? 'drift' : 'fade-stagger';
+    entries.push({
+      startMs:cursor, dur:EADUR, text:slide.subtitle,
+      x:px, y:titleY+(L.subtitleGap-L.titleLineH)*s,
+      font:`400 ${35*s}px "Inter Tight",sans-serif`,
+      color:T.text, alpha:0.72, preset:bodyPreset,
+      maxW:L.maxW*s
+    });
+    titleY += L.subtitleGap * s * 0.85;
+    cursor += STAGGER * 1.5;
+  }
+
+  // 4. BODY LINES
+  if(slide.body) {
+    let by = titleY + L.bodyGap*s*0.35;
+    const bodyPreset = cfg.bodyAnim==='none' ? 'snap' : cfg.bodyAnim==='slide' ? 'drift' : 'fade-stagger';
+    slide.body.split('\n').forEach(line => {
+      entries.push({
+        startMs:cursor, dur:EADUR, text:line,
+        x:px, y:by, font:`400 ${31*s}px "Inter Tight",sans-serif`,
+        color:T.text, alpha:0.62, preset:bodyPreset, maxW:L.maxW*s
+      });
+      by += L.bodyLineH*s;
+      cursor += STAGGER;
+    });
+    cursor += STAGGER;
+  }
+
+  // 5. CTA
+  if(slide.cta) {
+    entries.push({
+      startMs:cursor, dur:EADUR, text:slide.cta.toUpperCase(),
+      x:px, y:L.ctaY*s, font:`700 ${25*s}px "JetBrains Mono",monospace`,
+      color:T.cta, preset:'fade-stagger', maxW:L.maxW*s
+    });
+    cursor += STAGGER;
+  }
+
+  return { entries, totalAnimMs: cursor + EADUR };
+}
+
+// ══════════════════════════════════════════════════════════════
+// DRAW ONE ELEMENT with its anim state
+// ══════════════════════════════════════════════════════════════
+function drawElement(ctx, entry, elapsed) {
+  const localT = Math.max(0, elapsed - entry.startMs);
+  const t      = Math.min(1, localT / entry.dur);
+  if(t <= 0) return; // not started yet
+
+  const presetFn = PRESETS[entry.preset] || PRESETS['fade-stagger'];
+  const { offsetY, offsetX, scale, alpha: presetAlpha, blur } = presetFn(t);
+
+  const alpha = (entry.alpha||1) * presetAlpha;
+  if(alpha <= 0.01) return;
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Kinetic transform
-  if (offsetY !== 0 || scale !== 1) {
-    ctx.translate(0, offsetY*s);
-    if (scale !== 1) {
-      ctx.translate(W/2, H/2);
-      ctx.scale(scale,scale);
-      ctx.translate(-W/2,-H/2);
-    }
+  if(blur > 0) ctx.filter = `blur(${blur}px)`;
+
+  ctx.translate(entry.x + offsetX, entry.y + offsetY);
+  if(scale !== 1) {
+    // scale from text baseline-left origin
+    ctx.scale(scale, scale);
   }
 
-  let y = L.eyebrowY * s;
+  ctx.fillStyle  = entry.color;
+  ctx.font       = entry.font;
+  ctx.textAlign  = 'left';
+  ctx.textBaseline = 'alphabetic';
 
-  // Eyebrow
-  if (slide.eyebrow) {
-    ctx.fillStyle = T.eyebrow;
-    ctx.font = `500 ${28*s}px "JetBrains Mono",monospace`;
-    ctx.textAlign = 'left';
-    ctx.fillText(slide.eyebrow.toUpperCase(), px, y);
+  if(entry.noMaxW) ctx.fillText(entry.text, 0, 0);
+  else             ctx.fillText(entry.text, 0, 0, entry.maxW);
+
+  ctx.restore();
+  ctx.filter = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════
+// DRAW BACKGROUND (bg color, bgImage overlay, accent stripe)
+// ══════════════════════════════════════════════════════════════
+function drawBg(canvas, ctx, slide, cfg, slideIdx) {
+  const T   = cfg.theme;
+  const W   = canvas.width, H=canvas.height;
+  const s   = W/1080;
+
+  // BG color
+  ctx.fillStyle = cfg.bgOverride || T.bg;
+  ctx.fillRect(0,0,W,H);
+
+  // BG image (cover-fit + darken overlay)
+  const bgImg = bgCache[slideIdx];
+  if(bgImg) {
+    const ir = bgImg.width/bgImg.height, cr = W/H;
+    let sx,sy,sw,sh;
+    if(ir>cr){ sh=bgImg.height; sw=sh*cr; sx=(bgImg.width-sw)/2; sy=0; }
+    else     { sw=bgImg.width; sh=sw/cr; sx=0; sy=(bgImg.height-sh)/2; }
+    ctx.drawImage(bgImg,sx,sy,sw,sh,0,0,W,H);
+    ctx.fillStyle='rgba(0,0,0,0.42)';
+    ctx.fillRect(0,0,W,H);
   }
 
-  // Title (multi-line, with charReveal for typewriter)
-  y = L.titleStartY * s;
-  if (slide.title) {
-    ctx.fillStyle = T.text;
-    ctx.font = `800 ${94*s}px "Fraunces",Georgia,serif`;
-    ctx.textAlign = 'left';
-    const lines = slide.title.split('\n');
-    const totalChars = lines.join('').length;
-    let charsShown = Math.ceil(totalChars * charReveal);
-    lines.forEach(line => {
-      const show = charReveal < 1
-        ? (charsShown > 0 ? line.slice(0, charsShown) : '')
-        : line;
-      charsShown -= line.length;
-      ctx.fillText(show, px, y, L.maxW*s);
-      y += L.titleLineH*s;
-    });
-  }
+  // Accent stripe
+  ctx.fillStyle = T.accent;
+  ctx.fillRect(0,0,5*s,H);
+}
 
-  // Subtitle
-  if (slide.subtitle) {
-    y += (L.subtitleGap - L.titleLineH)*s;
-    const prevA = ctx.globalAlpha;
-    ctx.globalAlpha = alpha * 0.72;
-    ctx.fillStyle = T.text;
-    ctx.font = `400 ${35*s}px "Inter Tight",sans-serif`;
-    ctx.fillText(slide.subtitle, px, y, L.maxW*s);
-    ctx.globalAlpha = prevA;
-    y += L.subtitleGap*s*0.8;
-  }
-
-  // Body
-  if (slide.body) {
-    y += L.bodyGap*s*0.3;
-    const prevA = ctx.globalAlpha;
-    ctx.globalAlpha = alpha * 0.62;
-    ctx.fillStyle = T.text;
-    ctx.font = `400 ${31*s}px "Inter Tight",sans-serif`;
-    slide.body.split('\n').forEach(line => {
-      ctx.fillText(line, px, y, L.maxW*s);
-      y += L.bodyLineH*s;
-    });
-    ctx.globalAlpha = prevA;
-  }
-
-  // CTA
-  if (slide.cta) {
-    ctx.fillStyle = T.cta;
-    ctx.font = `700 ${25*s}px "JetBrains Mono",monospace`;
-    ctx.textAlign = 'left';
-    ctx.fillText(slide.cta.toUpperCase(), px, L.ctaY*s);
-  }
-
-  // Brand (vertical)
-  const brand = currentData?.brand || '';
-  if (brand) {
-    ctx.fillStyle = T.brand;
-    ctx.font = `400 ${21*s}px "JetBrains Mono",monospace`;
-    ctx.textAlign = 'left';
-    ctx.save();
-    ctx.translate(L.brandX*s, L.brandStartY*s);
-    ctx.rotate(-Math.PI/2);
-    ctx.fillText(brand.toUpperCase(), 0, 0);
-    ctx.restore();
-  }
-
+// ══════════════════════════════════════════════════════════════
+// DRAW BRAND (vertical, always static — no anim)
+// ══════════════════════════════════════════════════════════════
+function drawBrand(canvas, ctx, cfg) {
+  const brand = currentData?.brand||'';
+  if(!brand) return;
+  const s=canvas.width/1080, T=cfg.theme;
+  ctx.save();
+  ctx.globalAlpha=0.6;
+  ctx.fillStyle=T.brand;
+  ctx.font=`400 ${20*s}px "JetBrains Mono",monospace`;
+  ctx.textAlign='left';
+  ctx.translate(L.brandX*s, L.brandStartY*s);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText(brand.toUpperCase(),0,0);
   ctx.restore();
 }
 
-// ── ANIMATION RUNNER ─────────────────────────────────────────────
-// Shared by preview (previewCanvas, pCtx) and export (encodeCanvas, eCtx)
-const ANIM_IN  = 600;   // ms
-const ANIM_OUT = 300;   // ms
-
-function stopAnim() {
-  if (animRAF) { cancelAnimationFrame(animRAF); animRAF=null; }
-  animRunning = false;
+// ══════════════════════════════════════════════════════════════
+// RENDER STATIC (for first-frame preview after paste)
+// ══════════════════════════════════════════════════════════════
+function renderStatic(canvas, ctx, slide, cfg) {
+  const { entries } = buildTimeline(canvas, slide, cfg);
+  drawBg(canvas, ctx, slide, cfg, 0);
+  entries.forEach(e => drawElement(ctx, e, Infinity)); // Infinity = fully entered
+  drawBrand(canvas, ctx, cfg);
 }
 
-// Runs animation on a given canvas, returns a Promise that resolves when done
-// onSlideChange(slideIndex) called each time a new slide starts
-async function runAnim(canvas, ctx, themeKey, onSlideChange) {
-  const slides   = currentData.slides;
-  const holdMs   = slideDur * 1000;
-  const preset   = PRESETS[activePreset] || PRESETS.slam;
+// ══════════════════════════════════════════════════════════════
+// ANIMATE SLIDE
+// Returns a Promise resolving when the slide's anim-in + hold is done
+// onFrame() called each RAF tick for progress updates
+// ══════════════════════════════════════════════════════════════
+function animateSlide(canvas, ctx, slide, cfg, slideIdx) {
+  const { entries, totalAnimMs } = buildTimeline(canvas, slide, cfg);
+  const holdMs   = gDur * 1000;
+  const totalMs  = totalAnimMs + holdMs;
 
-  function wait(ms) {
-    return new Promise(res => {
-      const start = performance.now();
-      function tick() {
-        if (!animRunning) { res(); return; }
-        if (performance.now()-start >= ms) { res(); return; }
+  return new Promise(resolve => {
+    const start = performance.now();
+
+    function tick() {
+      if(!animRunning){ resolve(); return; }
+      const elapsed = performance.now() - start;
+      const t       = elapsed / totalMs;
+
+      drawBg(canvas, ctx, slide, cfg, slideIdx);
+      entries.forEach(e => drawElement(ctx, e, elapsed));
+      drawBrand(canvas, ctx, cfg);
+
+      if(elapsed < totalMs) {
         animRAF = requestAnimationFrame(tick);
+      } else {
+        resolve();
       }
-      animRAF = requestAnimationFrame(tick);
-    });
-  }
+    }
+    animRAF = requestAnimationFrame(tick);
+  });
+}
 
-  function animateIn() {
-    return new Promise(res => {
-      const start = performance.now();
+// ══════════════════════════════════════════════════════════════
+// ANIMATE OUT (fade the whole canvas)
+// ══════════════════════════════════════════════════════════════
+function animateOut(canvas, ctx, slide, cfg, slideIdx) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    // capture current frame as image to fade out
+    const snap = canvas.toDataURL();
+    const img  = new Image();
+    img.onload = () => {
       function tick() {
-        if (!animRunning) { res(); return; }
-        const t = Math.min(1, (performance.now()-start)/ANIM_IN);
-        drawSlide(canvas, ctx, slides[si], themeKey, preset(t));
-        if (t < 1) { animRAF = requestAnimationFrame(tick); } else { res(); }
-      }
-      animRAF = requestAnimationFrame(tick);
-    });
-  }
-
-  function animateOut() {
-    return new Promise(res => {
-      const start = performance.now();
-      function tick() {
-        if (!animRunning) { res(); return; }
-        const t = Math.min(1, (performance.now()-start)/ANIM_OUT);
-        const a = 1 - ease.inOutQuad(t);
+        if(!animRunning){ resolve(); return; }
+        const t = Math.min(1,(performance.now()-start)/ANIM_OUT_DUR);
+        const a = 1-E.inOutQuad(t);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.globalAlpha = a;
-        drawSlide(canvas, ctx, slides[si], themeKey, null);
+        ctx.drawImage(img,0,0);
         ctx.globalAlpha = 1;
-        if (t < 1) { animRAF = requestAnimationFrame(tick); } else { res(); }
+        if(t<1) animRAF=requestAnimationFrame(tick);
+        else resolve();
       }
-      animRAF = requestAnimationFrame(tick);
-    });
-  }
+      animRAF=requestAnimationFrame(tick);
+    };
+    img.src=snap;
+  });
+}
 
-  var si = 0;
-  for (si=0; si<slides.length; si++) {
-    if (!animRunning) break;
-    if (onSlideChange) onSlideChange(si);
-    await animateIn();
-    await wait(holdMs);
-    if (si < slides.length-1) await animateOut();
+// ══════════════════════════════════════════════════════════════
+// MAIN ANIMATION LOOP (shared by preview + export)
+// ══════════════════════════════════════════════════════════════
+async function runAll(canvas, ctx, onSlide) {
+  const slides = currentData.slides;
+  for(let i=0;i<slides.length;i++) {
+    if(!animRunning) break;
+    if(onSlide) onSlide(i);
+    const cfg = resolveConfig(slides[i]);
+    await animateSlide(canvas, ctx, slides[i], cfg, i);
+    if(!animRunning) break;
+    if(i < slides.length-1) await animateOut(canvas, ctx, slides[i], cfg, i);
   }
 }
 
-// ── PREVIEW ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// PREVIEW
+// ══════════════════════════════════════════════════════════════
 async function startPreview() {
-  stopAnim();
-  animRunning = true;
-  setButtons('previewing');
-  const themeKey = activeTheme || currentData.theme;
-  log(`Preview: ${currentData.slides.length} slides, preset=${activePreset}, theme=${themeKey}`);
-
+  if(animRAF){ cancelAnimationFrame(animRAF); animRAF=null; }
+  animRunning=true;
+  setButtons('playing');
+  log(`Preview: ${currentData.slides.length} slides, preset=${gPreset}, textAnim=${gTextAnim}`);
   try {
     await waitFonts();
-    await runAnim(previewCanvas, pCtx, themeKey, (i) => {
-      setDot(i, currentData.slides.length);
-    });
-  } catch(e) {
-    log('Preview error: '+e.message, 'err');
-    showStatus('Preview error: '+e.message, 'error');
-  } finally {
-    animRunning = false;
-    setButtons('idle');
-    log('Preview ended');
-  }
+    await runAll(pCv, pC, i => setDot(i, currentData.slides.length));
+  } catch(e){ log('Preview error: '+e.message,'err'); showStatus('Preview error: '+e.message,'error'); }
+  finally    { animRunning=false; setButtons('idle'); log('Preview done'); }
 }
 
-$('previewBtn').addEventListener('click', () => { if (currentData) startPreview(); });
-$('stopBtn').addEventListener('click', () => {
-  stopAnim();
-  setButtons('idle');
-  hideRecording();
+$('previewBtn').addEventListener('click', ()=>{ if(currentData) startPreview(); });
+$('stopBtn').addEventListener('click', ()=>{
+  animRunning=false;
+  if(animRAF){ cancelAnimationFrame(animRAF); animRAF=null; }
+  setButtons('idle'); hideRec();
   log('Stopped by user');
 });
 
-// ── EXPORT (MediaRecorder) ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// EXPORT — MediaRecorder + canvas.captureStream()
+// NO FFmpeg. NO SharedArrayBuffer. Works on GitHub Pages.
+// ══════════════════════════════════════════════════════════════
 async function startExport() {
-  if (!currentData || isRecording) return;
-
-  // Check API support
-  if (!window.MediaRecorder || !encodeCanvas.captureStream) {
-    showStatus('Your browser does not support canvas recording. Use Chrome desktop.', 'error');
-    return;
+  if(!currentData||isRecording) return;
+  if(!window.MediaRecorder||!eCv.captureStream){
+    showStatus('Browser does not support canvas recording. Use Chrome desktop.','error'); return;
   }
 
-  const themeKey = activeTheme || currentData.theme;
-  const totalSlides = currentData.slides.length;
-  const estSeconds  = Math.round(totalSlides * (slideDur + (ANIM_IN + ANIM_OUT) / 1000));
-
-  log(`Export start. Slides:${totalSlides}, ~${estSeconds}s at ${slideDur}s/slide`);
-
-  stopAnim();
-  isRecording  = true;
-  animRunning  = true;
-  setButtons('recording');
-  showRecording(0, totalSlides);
-  clearStatus();
+  log(`Export start: ${currentData.slides.length} slides`);
+  if(animRAF){ cancelAnimationFrame(animRAF); animRAF=null; }
+  isRecording=true; animRunning=true;
+  setButtons('rec'); clearStatus();
 
   await waitFonts();
 
-  // Pick best supported MIME
-  let mimeType = 'video/webm;codecs=vp9';
-  if (!MediaRecorder.isTypeSupported(mimeType)) {
-    mimeType = 'video/webm;codecs=vp8';
-    log('VP9 not supported, falling back to VP8', 'warn');
+  // Pick best MIME
+  let mime='video/webm;codecs=vp9';
+  if(!MediaRecorder.isTypeSupported(mime)) mime='video/webm;codecs=vp8';
+  if(!MediaRecorder.isTypeSupported(mime)) mime='video/webm';
+  if(!MediaRecorder.isTypeSupported(mime)){
+    showStatus('No supported recording format. Use Chrome desktop.','error');
+    isRecording=false; animRunning=false; setButtons('idle'); return;
   }
-  if (!MediaRecorder.isTypeSupported(mimeType)) {
-    mimeType = 'video/webm';
-    log('VP8 not supported, falling back to plain webm', 'warn');
-  }
-  if (!MediaRecorder.isTypeSupported(mimeType)) {
-    showStatus('No supported video format found. Use Chrome desktop.', 'error');
-    isRecording = false;
-    animRunning = false;
-    setButtons('idle');
-    return;
-  }
-  log(`Using MIME: ${mimeType}`, 'ok');
+  log(`MIME: ${mime}`,'ok');
 
-  const chunks = [];
-  const stream = encodeCanvas.captureStream(30);
-  log(`captureStream(30fps) attached to encodeCanvas`);
+  const chunks  = [];
+  const stream  = eCv.captureStream(30);
+  const recorder = new MediaRecorder(stream, { mimeType:mime, videoBitsPerSecond:8_000_000 });
 
-  const recorder = new MediaRecorder(stream, {
-    mimeType,
-    videoBitsPerSecond: 8_000_000   // 8 Mbps — good quality at 1080p
-  });
-
-  recorder.ondataavailable = e => {
-    if (e.data && e.data.size > 0) chunks.push(e.data);
-    log(`Data chunk: ${(e.data.size/1024).toFixed(1)} KB`);
-  };
-
+  recorder.ondataavailable = e => { if(e.data?.size>0) chunks.push(e.data); };
   recorder.onerror = e => {
-    log('Recorder error: ' + e.error?.message, 'err');
-    showStatus('Recording error: ' + e.error?.message, 'error');
-    isRecording = false;
-    animRunning = false;
-    setButtons('idle');
-    hideRecording();
+    log('Recorder error: '+e.error?.message,'err');
+    showStatus('Recording error: '+e.error?.message,'error');
+    isRecording=false; animRunning=false; setButtons('idle'); hideRec();
   };
-
   recorder.onstop = () => {
-    log(`Recording stopped. ${chunks.length} chunks collected`, 'ok');
-    const blob = new Blob(chunks, { type: mimeType });
-    log(`Final file: ${(blob.size/1024/1024).toFixed(2)} MB`, 'ok');
-
-    const slug = (currentData.brand || 'reel').toLowerCase().replace(/\s+/g,'-');
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `${slug}-kinetic.webm`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 8000);
-
-    hideRecording();
-    showStatus(`✓ Saved ${(blob.size/1024/1024).toFixed(1)} MB — check your Downloads`, 'success');
-    isRecording = false;
-    setButtons('idle');
+    log(`Done. ${chunks.length} chunks`,'ok');
+    const blob = new Blob(chunks,{type:mime});
+    log(`File: ${(blob.size/1024/1024).toFixed(2)} MB`,'ok');
+    const slug=(currentData.brand||'reel').toLowerCase().replace(/\s+/g,'-');
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`${slug}-kinetic.webm`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),8000);
+    hideRec();
+    showStatus(`✓ Saved ${(blob.size/1024/1024).toFixed(1)} MB — check Downloads`,'ok');
+    isRecording=false; setButtons('idle');
   };
 
-  // Start recording, then run animation, then stop
-  recorder.start(1000);  // collect chunks every 1s
-  log('MediaRecorder started');
+  recorder.start(1000);
+  log('Recorder started');
 
   try {
-    await runAnim(encodeCanvas, eCtx, themeKey, (i) => {
-      showRecording(i, totalSlides);
-      log(`Recording slide ${i+1}/${totalSlides}`);
-    });
-  } catch(e) {
-    log('Animation error during export: ' + e.message, 'err');
-  }
+    await runAll(eCv, eC, i => { showRec(i, currentData.slides.length); log(`Recording slide ${i+1}`); });
+  } catch(e){ log('Anim error during export: '+e.message,'err'); }
 
-  // Small pause to ensure last frame is flushed into the stream
-  await new Promise(r => setTimeout(r, 500));
-
+  await new Promise(r=>setTimeout(r,600)); // flush last frame
   recorder.stop();
-  animRunning = false;
-  log('Recorder.stop() called — waiting for onstop...');
+  animRunning=false;
+  log('recorder.stop() called');
 }
 
 $('exportBtn').addEventListener('click', startExport);
 
-// ── INIT ─────────────────────────────────────────────────────────
-(function init() {
-  log('Kinetic Reel Maker ready');
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+(function init(){
+  log('Kinetic Reel Maker v2 ready','ok');
   setButtons('idle');
-  // Draw placeholder on preview canvas
-  pCtx.fillStyle = '#ede9e2';
-  pCtx.fillRect(0,0,540,675);
-  pCtx.fillStyle = '#aaa';
-  pCtx.font = '13px "JetBrains Mono",monospace';
-  pCtx.textAlign = 'center';
-  pCtx.fillText('Paste JSON above to begin', 270, 337);
+  pC.fillStyle='#ede9e2'; pC.fillRect(0,0,540,675);
+  pC.fillStyle='#aaa'; pC.font='12px "JetBrains Mono",monospace';
+  pC.textAlign='center';
+  pC.fillText('Paste JSON above to begin',270,337);
 })();
 </script>
 </body>
